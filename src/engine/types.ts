@@ -71,10 +71,26 @@ export interface Cond {
   else?: Effect;
 }
 
+/** How a choice meets trouble. Repeating one hardens into a groove that closes the others. */
+export type Style = 'force' | 'tell' | 'car' | 'withdraw';
+
+export interface Groove {
+  force: number;
+  tell: number;
+  car: number;
+  withdraw: number;
+  /** Set once a style hits tier 2; only cleared when its count falls back to the break point. */
+  locked: Style | null;
+  /** Styles picked during the current act: a locked style only decays in an act without it. */
+  used: Partial<Record<Style, boolean>>;
+}
+
 export interface Choice {
   id: string;
   label: string;
   text: string;
+  /** Overrides the style derived from the tag, threat, and effect. */
+  style?: Style;
   requires?: { stat: Stat; min: number };
   forbidden?: { stat: Stat; max: number };
   needs?: { commissary?: number; support?: number };
@@ -315,6 +331,8 @@ export interface Game {
   visitPending: boolean;
   visitBanMonth: number;
   visitBanAct: string;
+  /** First month a visit can happen. Contact restored from Support 0 is letters and money only until the paperwork clears. */
+  visitReadyMonth: number;
   marks: number;
   missionsDrawn: number;
   monthly: { label: string; commissary?: number; standing?: number; untilAct?: boolean }[];
@@ -331,6 +349,7 @@ export interface Game {
   report: string[];
   lines: string[];
   actUsed: Record<string, Record<string, boolean | number>>;
+  groove: Groove;
   stats: {
     letGo: number;
     fights: number;

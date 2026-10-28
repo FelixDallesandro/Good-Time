@@ -5,7 +5,7 @@ import {
 import { YARD_DECK_SIZE } from '../src/content/yard';
 import {
   beginSentence, choose, chooseVisit, computeDice, conspFacts, continueResult, draftPick, newGame, preview,
-  pullCard, rollEyes, stopCounting, submitLetters, toMail, releaseMonth
+  pullCard, rollEyes, stopCounting, submitLetters, toMail, releaseMonth, grooveOf, lockReason
 } from '../src/engine/engine';
 import { careful } from '../src/engine/autoplay';
 import type { Break, Card, Game } from '../src/engine/types';
@@ -211,6 +211,25 @@ describe('Support, visits and mail', () => {
     expect(s.letters[0].notebook).toBe(true);
     expect(s.letters[0].lines[0].status).toBe('sent');
   });
+  it('gives contact restored from Support 0 no visit and no EFV until the questionnaire clears', () => {
+    const mailAt = (ready: number) => {
+      let s = hub(17, { out: 'nobody_a' });
+      s.support = 1;
+      s.visitReadyMonth = ready;
+      s.cleanStreak = 2;
+      s.mo.scenesLeft = 0;
+      s.mo.breaks = [];
+      s.mo.caught = false;
+      s.visitBanMonth = 0;
+      s.mo.noVisits = false;
+      return toMail(rollEyes(s));
+    };
+    const waiting = mailAt(99);
+    expect(waiting.visitPending).toBe(false);
+    expect(waiting.efv).toBe(false);
+    const cleared = mailAt(0);
+    expect(cleared.visitPending).toBe(true);
+  });
   it('lets staff hold messages that mention staff far more often than ordinary ones', () => {
     let hot = 0;
     let cold = 0;
@@ -235,6 +254,36 @@ describe('Support, visits and mail', () => {
     s = rollEyes(s);
     expect(s.support).toBe(sup - 1);
     expect(s.visitBanAct).not.toBe('');
+  });
+});
+
+describe('grooves', () => {
+  const pick = (s: Game, id: string): Game => {
+    s.phase = 'card';
+    s.cur = { card: structuredClone(YARD.get('disrespected')!), source: 'yard' };
+    return choose(s, id);
+  };
+  it('makes a style cost Standing to leave at tier 1, and locks the others at tier 2', () => {
+    let s = hub(21);
+    s.standing = 3;
+    s.groove = { force: 3, tell: 0, car: 0, withdraw: 0, locked: null, used: {} };
+    expect(grooveOf(s)).toEqual({ style: 'force', tier: 1 });
+    const cost = s.standing;
+    s = pick(s, 'let_go');
+    expect(s.standing).toBeLessThan(cost);
+    s.groove = { force: 6, tell: 0, car: 0, withdraw: 0, locked: 'force', used: {} };
+    const letGo = YARD.get('disrespected')!.choices!.find((c) => c.id === 'let_go')!;
+    s.cur = { card: structuredClone(YARD.get('disrespected')!), source: 'yard' };
+    expect(lockReason(s, letGo)).toMatch(/Locked in/);
+  });
+  it('locks in at 6 picks and stays locked until its count falls to 3', () => {
+    let s = hub(22);
+    for (let i = 0; i < 6; i++) s = continueResult(pick(s, 'fight'));
+    expect(s.groove.locked).toBe('force');
+    s.groove.force = 4; // below tier 2 but above the break point: it stays locked
+    s = continueResult(pick(s, 'fight'));
+    expect(s.groove.force).toBe(5);
+    expect(s.groove.locked).toBe('force');
   });
 });
 

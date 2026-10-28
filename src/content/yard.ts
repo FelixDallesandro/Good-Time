@@ -45,7 +45,7 @@ const TEST: Card[] = [
     text: 'Someone has been staring you down on the yard for three days.',
     choices: [
       { id: 'ask', label: 'Ask him what his problem is', text: 'A threat.', threat: thr(fightRoll(1, 3, 1)) },
-      { id: 'ignore', label: 'Ignore it', text: 'Your next Test card adds 1 white die.', effect: { flag: 'test_white' } },
+      { id: 'ignore', label: 'Ignore it', style: 'withdraw', text: 'Your next Test card adds 1 white die.', effect: { flag: 'test_white' } },
       { id: 'car', label: 'Ask your car', text: 'Roll a d6; on 4+ they find out it is mistaken identity. Otherwise it is not.', check: { target: 4, pass: { log: 'Mistaken identity. He was looking at someone behind you.' }, fail: { echoes: ['he_tries_again'] } } }
     ] }),
   yard({ id: 'heard_talking', tag: 'test', title: 'Heard You Talking',
@@ -58,7 +58,7 @@ const TEST: Card[] = [
   yard({ id: 'weight_pile', tag: 'test', title: 'The Weight Pile',
     text: "Your bench is taken, and the man on it says he doesn't see your name on it.",
     choices: [
-      { id: 'wait', label: 'Wait', text: '-1 Standing.', effect: { standing: -1 } },
+      { id: 'wait', label: 'Wait', style: 'withdraw', text: '-1 Standing.', effect: { standing: -1 } },
       { id: 'move', label: 'Move him', text: 'A threat.', threat: thr(fightRoll(1, 4, 1)) },
       { id: 'work', label: 'Work in with him', text: 'Roll a d6 plus Nerve; on 4+, +1 Standing and a new connection. Otherwise -1 Standing.', check: { stat: 'nerve', target: 4, pass: { standing: 1 }, fail: { standing: -1 } } }
     ] }),
@@ -101,7 +101,7 @@ const TEST: Card[] = [
     text: 'A new arrival picks you to prove himself on day one.',
     choices: [
       fight('Fight on the yard', 'Fight (2 blue, 4 white, 1 gray).', fightRoll(2, 4, 1)),
-      { id: 'walk', label: 'Walk away', text: '-2 Standing.', effect: { standing: -2 } },
+      { id: 'walk', label: 'Walk away', style: 'withdraw', text: '-2 Standing.', effect: { standing: -2 } },
       { id: 'standing', label: 'Let your Standing talk', text: 'At Standing 3+ he backs off. Otherwise it is a bet.', threat: thr(fightRoll(2, 4, 1)) }
     ] })
 ];

@@ -6,18 +6,21 @@
  *   npm run sim
  */
 import { careful, headDown, headDownThenWork, putInWorkOnce, randomPolicy, playGame } from '../src/engine/autoplay';
-import { ledgerRows } from '../src/engine/engine';
+import { grooveOf, ledgerRows } from '../src/engine/engine';
 import type { Policy } from '../src/engine/autoplay';
 
 const N = 3000;
 
 function run(label: string, facilityId: string, policy: Policy, inject?: string[]) {
   let months = 0, caught = 0, dice = 0, rolls = 0, early = 0, dead = 0, medical = 0, finalStanding = 0, majors = 0;
+  let grooved = 0, locked = 0;
   for (let seed = 1; seed <= N; seed++) {
     const s = playGame(seed * 7919, { facilityId, policy, inject });
     months += s.m;
     caught += s.stats.caught;
     finalStanding += s.standing;
+    if (grooveOf(s)) grooved++;
+    if (s.groove.locked) locked++;
     for (const e of s.ledger) {
       if (e.forced) continue;
       dice += Math.max(0, e.blueNo + (e.applies ? e.consp : 0)) + e.white + e.gray + e.rumor;
@@ -32,7 +35,8 @@ function run(label: string, facilityId: string, policy: Policy, inject?: string[
   console.log(
     `${label.padEnd(22)} ${facilityId.padEnd(8)} avg walk-out month ${f(months / N)}  caught/game ${f(caught / N)}  ` +
       `dice/roll ${f(dice / Math.max(1, rolls))}  walk early ${((early / N) * 100).toFixed(0)}%  ` +
-      `died ${((dead / N) * 100).toFixed(1)}%  medical ${((medical / N) * 100).toFixed(1)}%  end standing ${f(finalStanding / N)}`
+      `died ${((dead / N) * 100).toFixed(1)}%  medical ${((medical / N) * 100).toFixed(1)}%  end standing ${f(finalStanding / N)}  ` +
+      `groove ${((grooved / N) * 100).toFixed(0)}% locked ${((locked / N) * 100).toFixed(0)}%`
   );
 }
 

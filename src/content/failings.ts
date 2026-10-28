@@ -3,7 +3,7 @@ import type { Failing, Officer } from '../engine/types';
 export const OFFICERS: Officer[] = [
   { name: 'Okafor', mood: 'exhausted', blurb: 'Sergeant. By the book. The book is long and he has read all of it.' },
   { name: 'Pruitt', mood: 'exhausted', blurb: 'Counting his own days. Counts everything twice.' },
-  { name: 'Reyes', mood: 'decent', blurb: 'Firm, fair, tired. Writes fewer tickets than he could, and everyone knows it.' },
+  { name: 'Reyes', mood: 'decent', blurb: 'Firm, fair, tired. Writes fewer infractions than he could, and everyone knows it.' },
   { name: 'Dahl', mood: 'exhausted', blurb: "New. Hasn't learned yet which rules nobody follows." },
   { name: 'Moss', mood: 'exhausted', blurb: 'On overtime. Sixteen hours in, and not looking.' },
   { name: 'Brandt', mood: 'cruel', blurb: 'Holds grudges. Remembers names and files them in order.' },

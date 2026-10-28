@@ -4,7 +4,7 @@ import {
 } from './content';
 import { d, next, pickN, shuffle } from './rng';
 import type {
-  Card, Character, Choice, Cond, Effect, Game, Month, Officer, PullDef, RollSpec, RumorTag, Stat
+  Card, Character, Choice, Cond, Effect, Game, Groove, Month, Officer, PullDef, RollSpec, RumorTag, Stat, Style
 } from './types';
 
 export const STATS: Stat[] = ['nerve', 'hustle', 'cool', 'heart'];
@@ -39,6 +39,88 @@ export function actOf(s: Game): Act {
 }
 
 export const caughtChance = (dice: number) => 1 - Math.pow(5 / 6, dice);
+
+/* ------------------------------------------------------------------ */
+/* Grooves: how you meet trouble hardens into who you are              */
+/* ------------------------------------------------------------------ */
+
+export const STYLES: Style[] = ['force', 'tell', 'car', 'withdraw'];
+const GROOVE_TIER1 = 3; // the yard learns how you handle things; going against it costs Standing
+const GROOVE_TIER2 = 5; // the other ways close (a sentence is short: about 5 picks of one style is a pattern)
+const GROOVE_CAP = 7;
+const GROOVE_BREAK = 2; // a locked groove only opens once its count falls this far
+const VERB: Record<Style, string> = { force: 'fight', tell: 'tell', car: 'go to your car', withdraw: 'back down' };
+
+const newGroove = (): Groove => ({ force: 0, tell: 0, car: 0, withdraw: 0, locked: null, used: {} });
+/** Old saves have no groove. */
+const grooveOfState = (s: Game): Groove => (s.groove ??= newGroove());
+
+export function styleOf(ch: Choice): Style | null {
+  if (ch.style) return ch.style;
+  if (ch.tag === 'violent' || ch.threat) return 'force';
+  if (ch.tag === 'takeToCar') return 'car';
+  if (ch.tag === 'letGo' || ch.tag === 'lookAway' || ch.tag === 'walkAway') return 'withdraw';
+  if (ch.effect?.informed || ch.effect?.coopRumors) return 'tell';
+  return null;
+}
+
+/** The style you are known for (3+ picks and ahead of every other style), or null. */
+export function grooveOf(s: Game): { style: Style; tier: 1 | 2 } | null {
+  const g = grooveOfState(s);
+  if (g.locked) return { style: g.locked, tier: 2 };
+  const top = Math.max(...STYLES.map((k) => g[k]));
+  const leaders = STYLES.filter((k) => g[k] === top);
+  return top >= GROOVE_TIER1 && leaders.length === 1 ? { style: leaders[0], tier: 1 } : null;
+}
+
+export function grooveLabel(s: Game): string | null {
+  const gv = grooveOf(s);
+  return gv ? `${gv.tier === 2 ? 'Locked in' : 'Known to'} ${VERB[gv.style]}` : null;
+}
+
+/** The price of going against a tier 1 groove, shown on the choice. */
+export function grooveCost(s: Game, ch: Choice): string | null {
+  const gv = grooveOf(s);
+  const st = styleOf(ch);
+  return gv?.tier === 1 && st && st !== gv.style ? `Out of character: -1 Standing` : null;
+}
+
+function noteStyle(s: Game, ch: Choice) {
+  const st = styleOf(ch);
+  if (!st) return;
+  const g = grooveOfState(s);
+  const before = grooveOf(s);
+  if (before && before.style !== st) {
+    g[before.style] = Math.max(0, g[before.style] - 1);
+    if (before.tier === 1) {
+      addStanding(s, -1);
+      L(s, `That is not how you handle things. The yard notices: -1 Standing.`);
+    }
+  }
+  g[st] = Math.min(GROOVE_CAP, g[st] + 1);
+  g.used[st] = true;
+  if (g.locked && g[g.locked] <= GROOVE_BREAK) {
+    g.locked = null;
+    L(s, 'You have broken the pattern. It cost you.');
+  }
+  if (!g.locked && g[st] >= GROOVE_TIER2) {
+    g.locked = st;
+    L(s, `That is who you are now. You ${VERB[st]}, and the other ways are closed.`);
+  } else if (!before && grooveOf(s)?.style === st) {
+    L(s, `The yard is learning that you ${VERB[st]}. Any other way will cost you.`);
+  }
+}
+
+/** Slow decay at each act change: a style loses 1 only in an act spent without it. */
+function decayGroove(s: Game) {
+  const g = grooveOfState(s);
+  for (const k of STYLES) if (!g.used[k]) g[k] = Math.max(0, g[k] - 1);
+  g.used = {};
+  if (g.locked && g[g.locked] <= GROOVE_BREAK) {
+    g.locked = null;
+    L(s, 'A whole act without it. The pattern breaks.');
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* The Eyes                                                            */
@@ -126,10 +208,10 @@ export function newGame(facilityId: string, seed: number): Game {
     char: null, cellieId: '', draft: null, standing: f.startStanding, support: 0, boxes: 0, maxBoxes: f.boxes,
     commissary: 5, rumors: [], strings: [], proven: false, consBonus: 0, hurt: false, contraband: 0, job: false,
     flags: {}, usedMoves: {}, pull: {}, privateFlipped: false, blueOnce: 0, blueNext: 0, extraLines: 0,
-    skipNext: 0, cleanStreak: 0, efv: false, visitPending: false, visitBanMonth: 0, visitBanAct: '', marks: 0,
+    skipNext: 0, cleanStreak: 0, efv: false, visitPending: false, visitBanMonth: 0, visitBanAct: '', visitReadyMonth: 0, marks: 0,
     missionsDrawn: 0, monthly: [], deferred: [], yardDeck: [], yardDiscard: [], countDeck: [], queue: [],
     cur: null, result: null, mo: emptyMonth(OFFICERS[0]), letters: [], ledger: [], report: [], lines: [],
-    actUsed: {}, stats: { letGo: 0, fights: 0, informed: 0, putInWork: 0, pullGiven: 0, pullWalked: 0, caught: 0 },
+    actUsed: {}, groove: newGroove(), stats: { letGo: 0, fights: 0, informed: 0, putInWork: 0, pullGiven: 0, pullWalked: 0, caught: 0 },
     ending: null
   };
   s.draft = {
@@ -283,6 +365,7 @@ function processDeferred(s: Game, unit: 'month' | 'act') {
 function actChange(s: Game, act: Act) {
   if (s.lastAct) {
     processDeferred(s, 'act');
+    decayGroove(s);
     for (const k of Object.keys(s.flags)) if (k.startsWith('act_')) delete s.flags[k];
     s.monthly = s.monthly.filter((m) => !m.untilAct);
     if (s.visitBanAct && s.visitBanAct !== act) s.visitBanAct = '';
@@ -373,6 +456,8 @@ function enterHub(s: Game) {
 function unwanted(s: Game, c: Card): boolean {
   if (s.custody === 'minimum' && c.tag === 'politics') return true;
   if (c.id === 'put_in_work' && s.proven) return true;
+  // an EFV is on the line only for someone who could actually have one
+  if (c.id === 'the_visit' && !(visitsApproved(s) && facility(s.facilityId).efv)) return true;
   if (s.mo.lockdown && c.tag !== 'life') return true;
   if (c.tag === 'special') return false; // Missions and Leverage are never discarded by Standing
   const poliLocked = s.custody === 'close' || has(s, 'affiliated');
@@ -541,6 +626,9 @@ function rawLock(s: Game, ch: Choice, failings: boolean): string | null {
   if (ch.tag === 'takeToCar' && has(s, 'trust_no_one')) return 'Trust No One';
   if (ch.tag === 'walkAway' && has(s, 'gambler')) return 'Gambler';
   if (ch.tag === 'fold' && has(s, 'pride') && !s.hurt) return 'Pride';
+  const gv = grooveOf(s);
+  const st = styleOf(ch);
+  if (gv?.tier === 2 && st && st !== gv.style) return `Locked in: you ${VERB[gv.style]}`;
   return null;
 }
 
@@ -625,6 +713,7 @@ export function choose(g: Game, id: string): Game {
   if (!ch || lockReason(s, ch)) return g;
 
   delete s.flags.__repeat;
+  if (cur.source !== 'threat') noteStyle(s, ch); // a threat's follow-up is the same choice, not a second one
   if (ch.id === 'ok' && !card.choices?.length) countAuto(s, card);
   if (ch.special === 'pullRoll') resolvePull(s, card.pullId!);
   else if (ch.special) strike(s, ch.special);
@@ -990,6 +1079,10 @@ function addSupport(s: Game, n: number) {
   const before = s.support;
   s.support = clamp(s.support + n, 0, 3);
   if (s.support !== before) L(s, `Support ${s.support - before > 0 ? '+' : ''}${s.support - before} (now ${s.support})`);
+  if (before === 0 && s.support > 0) {
+    s.visitReadyMonth = s.m + VISIT_APPROVAL_MONTHS;
+    L(s, 'Someone is in touch again. Visits need an approved questionnaire, and that takes time.');
+  }
 }
 
 function flipPrivate(s: Game, extra = 0) {
@@ -1438,6 +1531,13 @@ export function letterSlots(s: Game): number {
   return 1 + s.extraLines + (statMod(s, 'heart') >= 1 ? 1 : 0);
 }
 
+/** Months between Support going from 0 to 1+ and the first possible visit. */
+const VISIT_APPROVAL_MONTHS = 2;
+
+export function visitsApproved(s: Game): boolean {
+  return s.support >= 1 && s.m >= s.visitReadyMonth;
+}
+
 export function visitsBanned(s: Game): boolean {
   return s.visitBanMonth === s.m || (!!s.visitBanAct && s.visitBanAct === actOf(s)) || s.mo.noVisits;
 }
@@ -1458,15 +1558,15 @@ export function toMail(g: Game): Game {
       L(s, 'A clean month: a good-time box is filled.');
     }
     const efvOk = facility(s.facilityId).efv;
-    if (s.cleanStreak >= 3 && s.support >= 1 && efvOk && !s.efv) {
+    if (s.cleanStreak >= 3 && visitsApproved(s) && efvOk && !s.efv) {
       s.efv = true;
       s.cleanStreak = 0;
       L(s, 'Three clean months in a row: you have earned an extended family visit. Your next scene is with your family.');
     }
-    if (s.support >= 1 && !visitsBanned(s)) {
+    if (visitsApproved(s) && !visitsBanned(s)) {
       s.visitPending = true;
       L(s, 'You have a visit.');
-    } else if (s.support >= 1) L(s, 'No visit this month: visits are suspended.');
+    } else if (visitsApproved(s)) L(s, 'No visit this month: visits are suspended.');
   }
   if (s.job) {
     s.commissary += 1;

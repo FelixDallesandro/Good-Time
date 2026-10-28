@@ -4,7 +4,7 @@ import {
 } from '../engine/content';
 import {
   STATS, actOf, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
-  conspFacts, continueResult, cutLeverage, denyRumor, draftPick, ledgerRows, leanOn, letterSlots, lockReason,
+  conspFacts, continueResult, cutLeverage, denyRumor, draftPick, grooveCost, grooveLabel, ledgerRows, leanOn, letterSlots, lockReason,
   newGame, payDebt, playMove, playScene, preview, releaseMonth, rollEyes, sentencingRows, standIn, stayIn,
   stopCounting, submitLetters, toMail
 } from '../engine/engine';
@@ -154,12 +154,17 @@ function Rules(p: { onBack: () => void }) {
     <div className="panel">
       <h2>The whole rulebook fits on one card</h2>
       <h3>Two tracks</h3>
-      <p><b>Calendar.</b> You start with a 12-month sentence and some empty good-time boxes. Each clean month fills one. You walk out at month 12 minus your filled boxes.</p>
+      <p><b>Calendar.</b> Your case sets your sentence, from 12 to 18 months. You don't see why; the ledger in the epilogue shows how your case compared. You also start with empty good-time boxes (3 to 5, depending on the facility). Each clean month fills one. You walk out at your sentence minus your filled boxes. A major can add up to 3 months along the way.</p>
       <p><b>Standing.</b> How the yard sees you, 0 to 5. Keeping the code raises it; breaking it lowers it. At 0 you are a target.</p>
       <p className="dim">The institution controls your Calendar. The yard controls your Standing. Almost every choice trades one for the other.</p>
+      <h3>Support</h3>
+      <p><b>Support</b> is how many people outside still have you, 0 to 3. With Support you get a visit on a clean month, and you write a real letter home. With none, there are no visits and you write in a notebook no one reads. An extended family visit is out of reach.</p>
+      <p>If someone gets back in touch after you had no one, visits wait on approval for about two months. Letters and money come first.</p>
       <h3>One roll: the Eyes</h3>
       <p>When you break a rule, count the dice on you. Blue for officers, white for prisoners, gray for cameras, red for rumors pinned to you. Any 6 means you're caught: one 6 is a minor (lose a box), two or more a major (lose two). You always see the dice before you act. The risk is never hidden, only the result.</p>
       <p className="dim">Staff roll behind a screen and tell you only "clean" or "caught." You never learn which die did it.</p>
+      <h3>Who you become</h3>
+      <p>The way you meet trouble sticks. Fight, tell, go to your car, or back down: repeat one and the yard learns it, and going against it costs Standing. Keep repeating it and the other ways close for good. A slow stretch without it can wear a habit down. A locked one almost never lets go.</p>
       <h3>A month</h3>
       <p>Count card → your scenes → the Eyes → mail call. At mail call you write a sentence home. In the epilogue, your letters are read next to your public card.</p>
       <h3>What to expect</h3>
@@ -249,6 +254,7 @@ function Hud(p: { g: Game; canRewind: boolean; countTime: () => void; onQuit: ()
         <span>Commissary <b>{g.commissary}</b></span>
         {g.rumors.length > 0 && <span className="tag">{g.rumors.length} rumor{g.rumors.length > 1 ? 's' : ''}</span>}
         {g.proven && <span className="tag">Proven</span>}
+        {grooveLabel(g) && <span className="tag">{grooveLabel(g)}</span>}
         {g.hurt && <span className="tag hurt">Hurt</span>}
       </div>
     </div>
@@ -339,7 +345,7 @@ function CardView({ g, act }: { g: Game; act: Act }) {
                 <b>{ch.label}</b>
                 {ch.text && <span className="dim small">{ch.text}</span>}
                 <PreviewLine g={g} ch={ch} />
-                {why && <span className="why">{why}</span>}
+                {why ? <span className="why">{why}</span> : grooveCost(g, ch) && <span className="why">{grooveCost(g, ch)}</span>}
               </>
             )}
           </button>
@@ -470,11 +476,13 @@ function Mail({ g, act }: { g: Game; act: Act }) {
         {lines.map((l, i) => (
           <div key={i}>
             <textarea value={l} placeholder="Write a sentence…" onChange={(e) => set(i, e.target.value)} />
-            <div className="row" style={{ marginTop: 6 }}>
-              {LETTER_IDEAS.slice(0, 4).map((idea) => (
-                <button key={idea} className="small ghost" onClick={() => set(i, idea)}>{idea}</button>
-              ))}
-            </div>
+            {!notebook && (
+              <div className="row" style={{ marginTop: 6 }}>
+                {LETTER_IDEAS.slice(0, 4).map((idea) => (
+                  <button key={idea} className="small ghost" onClick={() => set(i, idea)}>{idea}</button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         <button className="primary" disabled={g.visitPending} onClick={() => act((s) => submitLetters(s, lines))}>
