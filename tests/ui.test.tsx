@@ -4,7 +4,7 @@ import { GameView } from '../src/ui/App';
 import { careful, randomPolicy } from '../src/engine/autoplay';
 import { CHARGES, BACKGROUNDS, OUTSIDES } from '../src/engine/content';
 import {
-  availableMoves, beginSentence, choose, chooseVisit, continueResult, draftPick, newGame, playMove, playScene,
+  availableMoves, appeal, applyEfv, beginSentence, choose, chooseVisit, continueResult, draftPick, newGame, playMove, plead, playScene,
   rollEyes, submitLetters, toMail
 } from '../src/engine/engine';
 import type { Game } from '../src/engine/types';
@@ -37,8 +37,18 @@ describe('every screen renders', () => {
             if (mv && s.m % 2 === 0 && !s.flags[`t${s.m}`]) {
               s = { ...s, flags: { ...s.flags, [`t${s.m}`]: true } };
               s = playMove(s, mv.id);
-            } else s = s.mo.scenesLeft > 0 ? playScene(s) : rollEyes(s);
-          } else if (s.phase === 'eyes') s = toMail(s);
+            } else {
+              s = applyEfv(s);
+              s = s.mo.scenesLeft > 0 ? playScene(s) : rollEyes(s);
+            }
+          } else if (s.phase === 'eyes') {
+            if (s.hearings.length) s = plead(s, guard % 2 ? 'guilty' : 'contest');
+            else {
+              const i = s.infractions.findIndex((x) => x.plea === 'contest' && x.m === s.m && !x.appeal);
+              s = i >= 0 && seed % 2 ? appeal(s, i) : s;
+              s = toMail(s);
+            }
+          }
           else if (s.phase === 'mail') s = s.visitPending ? chooseVisit(s, 'steady') : submitLetters(s, ['Hello.']);
           else break;
         }

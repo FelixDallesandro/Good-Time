@@ -1,7 +1,7 @@
 import type { Card, Choice, Effect, RollSpec } from '../engine/types';
 
-/** A Fight: roll the Eyes for that place, +1 Standing whether caught or not, roll for Hurt after. */
-export const fightRoll = (blue = 1, white = 3, gray = 1): RollSpec => ({ blue, white, gray, severity: 'major' });
+/** A Fight: roll the Eyes for that place, +1 Standing whether caught or not, roll for Hurt after. Caught: 505 Fighting. */
+export const fightRoll = (blue = 1, white = 3, gray = 1): RollSpec => ({ blue, white, gray, severity: 'major', ser: '505' });
 export const fightEffect = (echoes: string[] = ['payback'], extra: Effect = {}): Effect => ({
   standing: 1,
   hurtCheck: 1,

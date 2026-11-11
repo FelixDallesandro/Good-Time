@@ -5,7 +5,7 @@ import { fightRoll, fightEffect, move, thr } from './helpers';
 export const CODE_MOVES: Card[] = [
   move({ id: 'code_hold_line', title: 'Hold the line: when an officer asks you who did it', text: 'He is polite about it. He already has a name in mind.',
     choices: [
-      { id: 'nothing', label: 'Say nothing', text: 'Staff rolls 1 blue die against you for failure to follow a directive.', roll: { blue: 1, discretionary: true } },
+      { id: 'nothing', label: 'Say nothing', text: 'Staff rolls 1 blue die against you for failure to follow a directive.', roll: { blue: 1, discretionary: true, gen: '103', ser: '509' } },
       { id: 'name', label: 'Give a name', text: 'Refill one good-time box, and pin a cooperation rumor to yourself.', effect: { boxes: 1, coopRumors: 1, informed: true } },
       { id: 'false', label: 'Give a false name', text: 'As giving a name, and the man you named shuffles Payback in.', effect: { boxes: 1, coopRumors: 1, informed: true, echoes: ['payback'] } }
     ] }),
@@ -29,9 +29,9 @@ export const CODE_MOVES: Card[] = [
     ] }),
   move({ id: 'code_courier', title: 'Courier: when your car asks you to carry a message to another unit', text: 'A folded square of paper, and a name.',
     choices: [
-      { id: 'carry', label: 'Carry it', text: 'Roll 1 blue, 1 gray. +1 Standing if clean.', roll: { blue: 1, gray: 1 }, onClean: { standing: 1 } },
+      { id: 'carry', label: 'Carry it', text: 'Roll 1 blue, 1 gray. +1 Standing if clean. Caught: a general (303) or a serious (734 Gang activity).', roll: { blue: 1, gray: 1, gen: '303', ser: '734' }, onClean: { standing: 1 } },
       { id: 'refuse', label: 'Refuse', text: '-1 Standing.', effect: { standing: -1 } },
-      { id: 'read', label: 'Read it first', text: 'Learn something you were not meant to. Roll 1 blue, 1 gray.', roll: { blue: 1, gray: 1 }, effect: { log: 'You learn one man\'s private business. You will not be able to forget it.' } }
+      { id: 'read', label: 'Read it first', text: 'Learn something you were not meant to. Roll 1 blue, 1 gray.', roll: { blue: 1, gray: 1, gen: '303', ser: '734' }, effect: { log: 'You learn one man\'s private business. You will not be able to forget it.' } }
     ] }),
   move({ id: 'code_shower', title: 'Shower rules: when someone breaks shower etiquette in front of you', text: 'He does not look at you. That is the insult.',
     choices: [
@@ -81,7 +81,7 @@ export const CODE_MOVES: Card[] = [
 export const ANYONE_MOVES: Card[] = [
   move({ id: 'any_hustle', title: 'When you run a hustle', text: 'Laundry, tattoos, cooking, legal work.',
     choices: [
-      { id: 'run', label: 'Run it', hustle: true, text: 'Roll 1 blue, 1 white. +2 store if clean (+3 with Hustle +1). Caught: a minor.', roll: { blue: 1, white: 1, severity: 'minor' }, onClean: { commissary: 2 } },
+      { id: 'run', label: 'Run it', hustle: true, text: 'Roll 1 blue, 1 white. +2 store if clean (+3 with Hustle +1). Caught: a general (351).', roll: { blue: 1, white: 1, severity: 'minor', gen: '351' }, onClean: { commissary: 2 } },
       { id: 'pass', label: 'Think better of it', text: 'Nothing happens.', effect: {} }
     ] }),
   move({ id: 'any_grievance', title: 'When you file a grievance', text: 'There is a form. There is always a form.',
@@ -98,7 +98,7 @@ export const ANYONE_MOVES: Card[] = [
   move({ id: 'any_question', title: 'When an officer asks you a question', text: 'He is casual about it. He is always casual about it.',
     choices: [
       { id: 'plain', label: 'Answer plainly', text: 'If anyone saw, pin a rumor to yourself.', sideRoll: { white: 2, on6: { rumors: 1 } }, effect: {} },
-      { id: 'dumb', label: 'Play dumb', text: 'Staff rolls 1 blue for failure to follow a directive.', roll: { blue: 1, discretionary: true } },
-      { id: 'why', label: 'Ask why', text: '+1 Standing if anyone saw; Staff rolls 1 blue.', roll: { blue: 1 }, sideRoll: { white: 2, on6: { standing: 1 } }, effect: {} }
+      { id: 'dumb', label: 'Play dumb', text: 'Staff rolls 1 blue. It can be written as a general (203 Lying to staff) or a serious (558 Interfering with staff).', roll: { blue: 1, discretionary: true, gen: '203', ser: '558' } },
+      { id: 'why', label: 'Ask why', text: '+1 Standing if anyone saw; Staff rolls 1 blue.', roll: { blue: 1, gen: '202', ser: '558' }, sideRoll: { white: 2, on6: { standing: 1 } }, effect: {} }
     ] })
 ];

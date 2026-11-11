@@ -15,7 +15,7 @@ const TEST: Card[] = [
   yard({ id: 'disrespected', tag: 'test', title: 'Disrespected',
     text: 'Someone from another car shoves past you at the microwave and says something in front of everyone. The dayroom goes quiet. Your car is watching. So is the officer in the bubble.',
     choices: [
-      fight('Fight', 'Fight (1 blue, 3 white, 1 gray). +1 Standing whether or not you are caught. Caught is a major. Payback will come.'),
+      fight('Fight', 'Fight (1 blue, 3 white, 1 gray). +1 Standing whether or not you are caught. Caught: 505 Fighting, a serious. Payback will come.'),
       letGo('-1 Standing, pin a rumor, shuffle He Tries Again in.', { standing: -1, rumors: 1, echoes: ['he_tries_again'] }),
       { id: 'squash', label: 'Squash it', text: 'Threaten him, and mean it. At Standing 3+ or Proven it works. Otherwise it is a bet.', threat: thr(fightRoll(), { foldEchoes: ['payback', 'he_tries_again'] }) },
       { id: 'car', label: 'Take it to your car', tag: 'takeToCar', text: 'You owe them. They will call it in.', effect: { debt: 'your shot caller' } }
@@ -56,7 +56,7 @@ const TEST: Card[] = [
       { id: 'ride', label: 'Let it ride', tag: 'letGo', text: '-1 Standing, pin a rumor to yourself.', effect: { standing: -1, rumors: 1 } }
     ] }),
   yard({ id: 'weight_pile', tag: 'test', title: 'The Weight Pile',
-    text: "Your bench is taken, and the man on it says he doesn't see your name on it.",
+    text: "Your bench is taken, and the man on it says he doesn't see your name on it. (A fight or assault finding bars you from weightlifting for two years: this card leaves the deck.)",
     choices: [
       { id: 'wait', label: 'Wait', style: 'withdraw', text: '-1 Standing.', effect: { standing: -1 } },
       { id: 'move', label: 'Move him', text: 'A threat.', threat: thr(fightRoll(1, 4, 1)) },
@@ -110,29 +110,29 @@ const TEST: Card[] = [
 /* Politics (12): your car's business                                   */
 /* ------------------------------------------------------------------ */
 const asked = {
-  standingSet: 4, proven: true, putInWork: true, visitBan: 'month'
+  standingSet: 4, proven: true, putInWork: true
 } as const;
 
 const POLITICS: Card[] = [
   yard({ id: 'hold_this', tag: 'politics', title: 'Hold This',
-    text: 'A friend in your car asks you to keep a package in your cell for a week.',
+    text: "A friend in your car asks you to keep a package in your cell for a week. You don't ask what's in it. A search team would.",
     choices: [
-      { id: 'hold', label: 'Hold it', text: 'Until the next Count card, any search finds it (a major).', effect: { contraband: 1 } },
+      { id: 'hold', label: 'Hold it', text: 'Until the next Count card, any search finds it (a serious, charged as whatever is inside).', effect: { contraband: 1 } },
       { id: 'refuse', label: 'Refuse', text: '-2 Standing.', effect: { standing: -2 } },
       { id: 'cell', label: "Hold it and move it to your cellie's side", text: 'Cell tag rules: if it is found, your cellie may or may not own it.', effect: { contraband: 1, cellContraband: true } }
     ] }),
   yard({ id: 'car_politics', tag: 'politics', title: 'Car Politics',
     text: 'Your car calls everyone out against another car tomorrow at yard.',
     choices: [
-      fight('Show up', 'Fight on the yard; a major if caught.', fightRoll(2, 4, 1)),
+      fight('Show up', 'Fight on the yard; caught: 505 Fighting, a serious.', fightRoll(2, 4, 1)),
       { id: 'stay', label: 'Stay in your cell', text: 'A Mission is put on you.', effect: { mission: 1 } },
       { id: 'warn', label: 'Warn an officer', text: 'Pin a cooperation rumor; the riot does not happen.', effect: { coopRumors: 1, informed: true } }
     ] }),
   yard({ id: 'the_visit', tag: 'politics', title: 'The Visit',
-    text: "Your extended family visit is next week: your kid's birthday, or your partner's. Today your car tells you to put in work and run a mission on someone.",
+    text: "Your extended family visit is on the schedule: two nights in the trailer with your family, the first in months. Today your car tells you to put in work and run a mission on someone.",
     choices: [
-      { id: 'do', label: 'Do the work', tag: 'violent', auto: true,
-        text: 'A major (no roll), and the major cancels the visit. Standing jumps to 4, you are Proven (Test cards are discarded for you for good), and staff validate you: +1 Conspicuity.', effect: { ...asked } },
+      { id: 'do', label: 'Do the work', tag: 'violent', auto: true, roll: { ser: '633' },
+        text: 'A serious (no roll): 633 Assault. Any serious suspends you from the family visit program for six months, and then you start the application over. Standing jumps to 4, you are Proven (Test cards are discarded for you for good), and staff validate you: +1 Conspicuity.', effect: { ...asked } },
       { id: 'refuse', label: 'Refuse', text: 'A Mission is put on you.', effect: { mission: 1 } },
       { id: 'stall', label: 'Stall', text: 'Roll a d6; on 5-6 the visit comes first. Otherwise, you choose again.', check: { target: 5, pass: { log: 'The visit comes first. You have bought a month.' }, fail: { repeat: true, log: 'They are not waiting any longer.' } } }
     ] }),
@@ -146,7 +146,7 @@ const POLITICS: Card[] = [
   yard({ id: 'the_run', tag: 'politics', title: 'The Run',
     text: 'Your car wants you to bring something back from your work assignment.',
     choices: [
-      { id: 'bring', label: 'Bring it', text: 'Roll 1 blue, 1 gray. +2 Standing if clean, a major if caught.', roll: { blue: 1, gray: 1, severity: 'major' }, onClean: { standing: 2 } },
+      { id: 'bring', label: 'Bring it', text: 'Roll 1 blue, 1 gray. +2 Standing if clean. Caught: 702 Introducing an unauthorized tool, a serious.', roll: { blue: 1, gray: 1, severity: 'major', ser: '702' }, onClean: { standing: 2 } },
       { id: 'refuse', label: 'Refuse', text: '-1 Standing.', effect: { standing: -1 } },
       { id: 'pulled', label: 'Say your job was pulled', text: 'Roll a d6; on 1-2 they check, and -2 Standing.', check: { target: 3, pass: {}, fail: { standing: -2, rumors: 1 } } }
     ] }),
@@ -174,7 +174,7 @@ const POLITICS: Card[] = [
   yard({ id: 'lookout', tag: 'politics', title: 'Lookout',
     text: "You're asked to stand at the end of the tier while something happens.",
     choices: [
-      { id: 'do', label: 'Do it', text: 'Roll 1 blue, 1 gray. +1 Standing if clean, a major if caught.', roll: { blue: 1, gray: 1, severity: 'major' }, onClean: { standing: 1 } },
+      { id: 'do', label: 'Do it', text: 'Roll 1 blue, 1 gray. +1 Standing if clean. Caught: 709 Out of bounds, a serious.', roll: { blue: 1, gray: 1, severity: 'major', ser: '709' }, onClean: { standing: 1 } },
       { id: 'refuse', label: 'Refuse', text: '-1 Standing.', effect: { standing: -1 } },
       { id: 'walk', label: 'Walk away in the middle', text: '-3 Standing, and shuffle Payback in.', effect: { standing: -3, echoes: ['payback'] } }
     ] }),
@@ -188,7 +188,7 @@ const POLITICS: Card[] = [
   yard({ id: 'green_light', tag: 'politics', title: 'Green Light',
     text: 'Someone in your own car has been green-lit. You are asked to help.',
     choices: [
-      { id: 'help', label: 'Help', tag: 'violent', auto: true, text: 'A major (no roll), +2 Standing, and he shuffles Payback in.', effect: { standing: 2, echoes: ['payback'] } },
+      { id: 'help', label: 'Help', tag: 'violent', auto: true, roll: { ser: '633' }, text: 'A serious (no roll): 633 Assault. +2 Standing, and he shuffles Payback in.', effect: { standing: 2, echoes: ['payback'] } },
       { id: 'refuse', label: 'Refuse', text: 'A Mission is put on you.', effect: { mission: 1 } },
       { id: 'warn', label: 'Warn him', text: 'If he lives, he owes you everything. Roll a d6; on 1-2 your car finds out, and a Mission is put on you.', effect: { leverage: true }, check: { target: 3, pass: {}, fail: { mission: 1 } } }
     ] }),
@@ -235,13 +235,13 @@ const LIFE: Card[] = [
       { id: 'handle', label: 'Tell him to handle it', text: "If the store man comes to the cell, you're in the room.", effect: { echoes: ['store_collects'] } },
       { id: 'stash', label: 'Tell the store man where his stash is', text: "+1 Standing with the store man, and your cellie knows.", effect: { standing: 1, newCellie: true } }
     ] }),
-  yard({ id: 'phone_vent', tag: 'life', title: 'The Phone in the Vent',
-    text: "A search team is two cells away, and your cellie's phone is in your vent.",
+  yard({ id: 'phone_vent', tag: 'life', title: 'The Phone',
+    text: "A search team is two cells away, and your cellie's phone is somewhere in your cell. A phone is a Category A, the same as a weapon: it means someone in a uniform brought it in, and the institution will want to know who.",
     choices: [
-      { id: 'claim', label: 'Claim it', tag: 'violent', auto: true, text: 'A major (no roll). +1 Standing, and he owes you.', effect: { standing: 1, leverage: true } },
-      { id: 'silent', label: 'Say nothing', text: 'Cell tag: you both roll the Eyes with 2 blue dice.', roll: { blue: 2 } },
+      { id: 'claim', label: 'Claim it', tag: 'violent', auto: true, roll: { ser: '882' }, text: 'A serious (no roll): 882 Cell phone. You lose phone privileges for months. +1 Standing, and he owes you.', effect: { standing: 1, leverage: true } },
+      { id: 'silent', label: 'Say nothing', text: 'Cell tag: you both roll the Eyes with 2 blue dice. Caught: 882, a serious.', roll: { blue: 2, ser: '882' } },
       { id: 'tell', label: "Tell the officer it's his", text: 'No roll for you; pin a cooperation rumor. He will look for who talked.', effect: { coopRumors: 1, informed: true, echoes: ['payback'] } },
-      { id: 'flush', label: 'Flush it', text: 'Roll 1 blue die. If clean, -1 Standing and he is out $400.', roll: { blue: 1 }, onClean: { standing: -1, echoes: ['store_collects'] } }
+      { id: 'flush', label: 'Flush it', text: 'Roll 1 blue die. If clean, -1 Standing and he is out $400. Caught: 894 Disposing of evidence.', roll: { blue: 1, ser: '894' }, onClean: { standing: -1, echoes: ['store_collects'] } }
     ] }),
   yard({ id: 'bad_news', tag: 'life', title: 'Bad News',
     text: 'A call home: someone you love has died. The funeral furlough is denied.',
@@ -262,7 +262,7 @@ const LIFE: Card[] = [
     choices: [
       { id: 'copay', label: 'Pay the copay', needs: { commissary: 1 }, text: '-1 store; seen in two weeks.', effect: { commissary: -1 } },
       { id: 'wait', label: 'Wait it out', text: "Roll a d6; on 1-2 you're Hurt.", check: { target: 3, pass: {}, fail: { hurtCheck: 6 } } },
-      { id: 'trade', label: 'Trade for meds on the tier', needs: { commissary: 2 }, text: '-2 store, roll 1 white.', roll: { white: 1 }, effect: { commissary: -2 } }
+      { id: 'trade', label: 'Trade for meds on the tier', needs: { commissary: 2 }, text: '-2 store, roll 1 white. Caught: a general (351) or a serious (669 Trading prescribed medication).', roll: { white: 1, gen: '351', ser: '669' }, effect: { commissary: -2 } }
     ] }),
   yard({ id: 'wrong_mail', tag: 'life', title: 'Wrong Mail',
     text: "Someone else's mail lands in your cell: photos and a letter.",
@@ -278,12 +278,12 @@ const LIFE: Card[] = [
       { id: 'self', label: 'Do it yourself in the law library', text: 'Two scenes, same roll.', effect: { skipScene: 2, defer: { in: 1, unit: 'act', chance: 1 / 6, effect: { sentence: -1, log: 'The appeal worked: one month off your sentence.' } } } },
       { id: 'let', label: 'Let it go', text: 'No change.', effect: {} }
     ] }),
-  yard({ id: 'divorce_papers', tag: 'life', title: 'Divorce Papers',
-    text: 'Legal mail. Your partner is filing.',
+  yard({ id: 'divorce_papers', tag: 'life', title: 'Divorce Papers', needsTie: ['partner'],
+    text: 'Legal mail, opened in front of you. Your partner is filing. If she goes, she comes off your visiting list, and any child who only comes with her stops coming too.',
     choices: [
-      { id: 'sign', label: 'Sign', text: '-1 Support.', effect: { support: -1 } },
-      { id: 'refuse', label: 'Refuse to sign', text: 'No change now; -2 Support at the end of the act.', effect: { defer: { in: 1, unit: 'act', effect: { support: -2, log: 'The papers came back anyway.' } } } },
-      { id: 'call', label: 'Call her', needs: { commissary: 2 }, text: '-2 store; roll a d6 plus Heart; on 5+, she waits. Otherwise -1 Support.', effect: { commissary: -2 }, check: { stat: 'heart', target: 5, pass: { log: 'She waits.' }, fail: { support: -1 } } }
+      { id: 'sign', label: 'Sign', text: 'She is gone.', effect: { ties: [{ id: 'partner', gone: true, why: 'You sign. Her name comes off your visiting list.' }] } },
+      { id: 'refuse', label: 'Refuse to sign', text: 'No change now. At the end of the act, she is gone anyway.', effect: { defer: { in: 1, unit: 'act', effect: { ties: [{ id: 'partner', gone: true, why: 'The papers came back anyway. Her name comes off your visiting list.' }] } } } },
+      { id: 'call', label: 'Call her', phone: true, needs: { commissary: 2 }, text: '-2 store; roll a d6 plus Heart; on 5+, she waits. Otherwise she is gone.', effect: { commissary: -2 }, check: { stat: 'heart', target: 5, pass: { log: 'She waits.' }, fail: { ties: [{ id: 'partner', gone: true, why: 'She does not wait.' }] } } }
     ] }),
   yard({ id: 'spread', tag: 'life', title: 'Spread',
     text: "It's a man's birthday. The tier is putting together a spread.",
@@ -295,7 +295,7 @@ const LIFE: Card[] = [
   yard({ id: 'man_down', tag: 'life', title: 'Man Down',
     text: 'A man on your tier is overdosing in his cell.',
     choices: [
-      { id: 'staff', label: 'Call for staff', text: "He lives. Staff roll 1 blue against you (they'll ask what you saw); pin a rumor.", roll: { blue: 1 }, effect: { rumors: 1 } },
+      { id: 'staff', label: 'Call for staff', text: "He lives. Staff roll 1 blue against you (they'll ask what you saw); pin a rumor.", roll: { blue: 1, gen: '103' }, effect: { rumors: 1 } },
       { id: 'cellie', label: 'Get his cellie to call', text: "Roll a d6; on 1-2 it's too late. You carry that: -1 Heart.", check: { target: 3, pass: { log: 'He lives.' }, fail: { statDelta: { heart: -1 }, log: 'It was too late.' } } },
       { id: 'nothing', label: 'Do nothing', text: 'No roll. Write it in your notebook or message home.', effect: { extraLine: true } }
     ] }),
@@ -320,7 +320,8 @@ const LIFE: Card[] = [
     choices: [
       { id: 'give', label: 'Give it', text: 'Lose all your store.', effect: { commissary: -999 } },
       { id: 'no', label: "Don't", text: 'No change.', effect: {} },
-      { id: 'honest', label: 'Write back and keep it honest', text: 'Support +1 if you have none.', cond: { supportMax: 0, then: { support: 1 }, else: {} } }
+      { id: 'honest', label: 'Write back and keep it honest', text: 'Support 1 if you have none. Messages only: she will never visit.',
+        cond: { supportMax: 0, then: { newTie: { id: 'pen_pal', who: 'your pen pal', to: 'my pen pal', role: 'stranger', weight: 1, visits: false, efv: false } }, else: {} } }
     ] })
 ];
 
@@ -329,11 +330,11 @@ const LIFE: Card[] = [
 /* ------------------------------------------------------------------ */
 const SPECIAL: Card[] = [
   yard({ id: 'payback', tag: 'test', echo: true, title: 'Payback',
-    text: 'The man you crossed and two friends catch you alone in the showers. You are attacked: defending yourself is not an infraction, and you roll no Eyes. Roll for Hurt.',
+    text: "The man you crossed and two friends run up on you in the dayroom, in front of everyone, officers included. It is meant to be seen. Nobody wonders who started it: you roll no Eyes. Roll for Hurt. Staff may move you off mainline afterward, not because you are in trouble, but because they are not sure you are safe there.",
     choices: [
-      { id: 'again', label: 'Fight again later', tag: 'violent', text: 'Hurt check. Shuffle Payback in once more.', effect: { hurtCheck: 1, echoes: ['payback'] } },
-      { id: 'report', label: 'Report it', text: "Hurt check. You wear a rat jacket: pin a cooperation rumor.", effect: { hurtCheck: 1, coopRumors: 1 } },
-      { id: 'take', label: 'Take it and say nothing', text: "Hurt check. -1 Standing, and it's over.", effect: { hurtCheck: 1, standing: -1 } }
+      { id: 'again', label: 'Fight again later', tag: 'violent', text: 'Hurt check. Shuffle Payback in once more. Staff may move you for your safety.', effect: { hurtCheck: 1, echoes: ['payback'], segSafety: 0.35 } },
+      { id: 'report', label: 'Report it', text: "Hurt check. You wear a rat jacket: pin a cooperation rumor. Staff are more likely to move you for your safety.", effect: { hurtCheck: 1, coopRumors: 1, segSafety: 0.6 } },
+      { id: 'take', label: 'Take it and say nothing', text: "Hurt check. -1 Standing, and it's over. Staff may still move you.", effect: { hurtCheck: 1, standing: -1, segSafety: 0.25 } }
     ] }),
   yard({ id: 'he_tries_again', tag: 'test', echo: true, title: 'He Tries Again',
     text: 'The same man takes your seat at chow. Everyone remembers last time.',
@@ -343,20 +344,20 @@ const SPECIAL: Card[] = [
       { id: 'squash', label: 'Squash it', text: 'A threat, with -1 to the roll.', threat: thr(fightRoll(2, 4, 1), { mod: -1 }) }
     ] }),
   yard({ id: 'leverage', tag: 'special', echo: true, title: 'Leverage',
-    text: "Someone knows you've got a visit coming. They want your store, or they'll start something that gets you written up before Saturday.",
+    text: "Someone knows people outside put money on your books. They want a cut, or they'll start something and make sure your name ends up on the infraction report.",
     choices: [
       { id: 'pay', label: 'Pay', text: 'Lose store equal to your Support. Shuffle Leverage back in: they will be back.', effect: { commissarySupport: true, echoes: ['leverage'] } },
-      { id: 'swallow', label: 'Swallow it', text: '-1 Standing; your visit is safe.', effect: { standing: -1 } },
-      { id: 'refuse', label: 'Refuse', tag: 'violent', text: 'It becomes a Fight, and your visits are on the line: if caught, no visits next month.', roll: fightRoll(), effect: fightEffect(['payback']), onCaught: { visitBan: 'month' } },
+      { id: 'swallow', label: 'Swallow it', text: '-1 Standing; they find someone else.', effect: { standing: -1 } },
+      { id: 'refuse', label: 'Refuse', tag: 'violent', text: 'It becomes a Fight. Caught: 505, a serious, which also ends any family visit program for six months.', roll: fightRoll(), effect: fightEffect(['payback']) },
       { id: 'threat', label: 'Threaten', text: 'A threat.', threat: thr(fightRoll()) },
       { id: 'car', label: 'Take it to your car', tag: 'takeToCar', text: 'You owe them for it.', effect: { debt: 'your car' } }
     ] }),
   yard({ id: 'mission', tag: 'special', echo: true, title: 'Mission',
-    text: "They catch you somewhere public, where everyone can see it happen. You're clearly not the aggressor, so defending yourself rolls no Eyes, but you still spend your next scene in the hole while staff sort it out. On a Mission you're Hurt on 1-3, because sometimes it's a blade.",
+    text: "They catch you somewhere public, in front of the officers, where everyone can see it happen. It is clear who the aggressor is, so defending yourself rolls no Eyes. Sometimes the victim doesn't even go to seg. Sometimes staff move you off mainline anyway, for your safety. On a Mission you're Hurt on 1-3, because sometimes it's a blade.",
     choices: [
-      { id: 'back', label: 'Come back to the yard', text: 'Shuffle two more Missions in. They will keep coming.', effect: { hurtCheck: 3, skipScene: 1, mission: 2 } },
-      { id: 'hit', label: 'Hit back harder', tag: 'violent', text: 'Play a fight and roll the Eyes. Each time you hit back and are not caught, make a mark. At three marks, every Mission is removed.',
-        roll: fightRoll(), effect: { hurtCheck: 3, skipScene: 1, standing: 1 }, onClean: { markHit: true } },
+      { id: 'back', label: 'Come back to the yard', text: 'Shuffle two more Missions in. They will keep coming. Staff may move you for your safety.', effect: { hurtCheck: 3, mission: 2, segSafety: 0.5 } },
+      { id: 'hit', label: 'Hit back harder', tag: 'violent', text: 'Past defending yourself, in front of officers: now it is a fight, and caught is 505. Each time you hit back and are not caught, make a mark. At three marks, every Mission is removed.',
+        roll: fightRoll(2, 4, 1), effect: { hurtCheck: 3, standing: 1, segSafety: 0.5 }, onClean: { markHit: true } },
       { id: 'check', label: 'Check in', text: 'Ask to be moved. Your Standing drops to 0 and you leave the yard for protective custody. Your game ends, and your letters are read in the epilogue.', effect: { standingSet: 0, pc: true } }
     ] }),
   yard({ id: 'store_collects', tag: 'life', echo: true, title: "The Store Man's Cousin",
@@ -370,7 +371,7 @@ const SPECIAL: Card[] = [
     text: 'A debt you owe is being called in. Your car asks you to put in work. Nobody says what the work is. Nobody has to.',
     choices: [
       { id: 'do', label: 'Do it', tag: 'violent', auto: true,
-        text: 'No roll: in a unit full of cameras and witnesses, you are caught. A major. Standing jumps to 4, you are Proven (Test cards are discarded for you for good), and staff validate you: +1 Conspicuity.',
+        text: 'No roll: in a unit full of cameras and witnesses, you are caught: 633 Assault, a serious. Standing jumps to 4, you are Proven (Test cards are discarded for you for good), and staff validate you: +1 Conspicuity.',
         effect: { standingSet: 4, proven: true, putInWork: true } },
       { id: 'refuse', label: 'Refuse', text: 'Lose 2 Standing. Car Politics comes back.', effect: { standing: -2, echoes: ['car_politics'] } },
       { id: 'buy', label: 'Buy your way out', requires: { stat: 'hustle', min: 1 }, needs: { commissary: 8 }, text: "Hustle +1 only. Pay 8 store and lose 1 Standing. You'll be asked again.", effect: { commissary: -8, standing: -1, echoes: ['put_in_work'] } }

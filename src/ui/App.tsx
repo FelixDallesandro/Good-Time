@@ -3,21 +3,22 @@ import {
   FACILITIES, background, charge, facility, failing, outside
 } from '../engine/content';
 import {
-  STATS, actOf, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
-  conspFacts, continueResult, cutLeverage, denyRumor, draftPick, grooveCost, grooveLabel, ledgerRows, leanOn, letterSlots, lockReason,
-  newGame, payDebt, playMove, playScene, preview, releaseMonth, rollEyes, sentencingRows, standIn, stayIn,
-  stopCounting, submitLetters, toMail
+  STATS, actOf, activeTies, appeal, applyEfv, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
+  conspFacts, continueResult, custodyScore, cutLeverage, denyRumor, draftPick, efvBlock, grooveCost, grooveLabel, ledgerRows, leanOn, letterSlots, lockReason,
+  newGame, onSheet, payDebt, plead, playMove, playScene, preview, primaryTie, releaseMonth, rollEyes, sentencingRows, standIn, stayIn,
+  stopCounting, submitLetters, tieActive, toMail, visitingTies
 } from '../engine/engine';
+import { violation } from '../content/violations';
 import type { Choice, Game } from '../engine/types';
 
-const SAVE = 'goodtime.save.v2';
+const SAVE = 'goodtime.save.v3';
 const SEEN = 'goodtime.notice.v1';
 
 function loadSave(): Game | null {
   try {
     const t = localStorage.getItem(SAVE);
     const g = t ? (JSON.parse(t) as Game) : null;
-    return g && g.v === 2 ? g : null;
+    return g && g.v === 3 ? g : null;
   } catch {
     return null;
   }
@@ -154,19 +155,23 @@ function Rules(p: { onBack: () => void }) {
     <div className="panel">
       <h2>The whole rulebook fits on one card</h2>
       <h3>Two tracks</h3>
-      <p><b>Calendar.</b> Your case sets your sentence, from 12 to 18 months. You don't see why; the ledger in the epilogue shows how your case compared. You also start with empty good-time boxes (3 to 5, depending on the facility). Each clean month fills one. You walk out at your sentence minus your filled boxes. A major can add up to 3 months along the way.</p>
+      <p><b>Calendar.</b> Your case sets your sentence, from 12 to 18 months. You don't see why; the ledger in the epilogue shows how your case compared. You also start with empty good-time boxes (3 to 5, depending on the facility). Each month without a serious violation fills one. You walk out at your sentence minus your filled boxes. A serious violation can take good time away for good: every 30 days taken is one box you can never fill.</p>
       <p><b>Standing.</b> How the yard sees you, 0 to 5. Keeping the code raises it; breaking it lowers it. At 0 you are a target.</p>
       <p className="dim">The institution controls your Calendar. The yard controls your Standing. Almost every choice trades one for the other.</p>
       <h3>Support</h3>
-      <p><b>Support</b> is how many people outside still have you, 0 to 3. With Support you get a visit on a clean month, and you write a real letter home. With none, there are no visits and you write in a notebook no one reads. An extended family visit is out of reach.</p>
-      <p>If someone gets back in touch after you had no one, visits wait on approval for about two months. Letters and money come first.</p>
+      <p><b>Support</b> is the people outside who still have you, 0 to 3. Each of them is a real person: some can visit, some can only write, and a child can only come with the adult who brings them. When someone leaves, their visits and their letters stop. With no one, you write in a notebook no one reads.</p>
+      <p>A new visitor waits on the visitor application, about two months. An extended family visit is a separate program: you need six visits in the last twelve months before you can apply, and the decision takes two to six months. Any serious violation suspends it for six months, and then you start over.</p>
       <h3>One roll: the Eyes</h3>
-      <p>When you break a rule, count the dice on you. Blue for officers, white for prisoners, gray for cameras, red for rumors pinned to you. Any 6 means you're caught: one 6 is a minor (lose a box), two or more a major (lose two). You always see the dice before you act. The risk is never hidden, only the result.</p>
+      <p>When you break a rule, count the dice on you. Blue for officers, white for prisoners, gray for cameras, red for rumors pinned to you. Any 6 means you're caught. One 6 is usually written as a <b>general</b> infraction, two or more as a <b>serious</b> one, and some acts are always serious. You always see the dice before you act. The risk is never hidden, only the result.</p>
       <p className="dim">Staff roll behind a screen and tell you only "clean" or "caught." You never learn which die did it.</p>
+      <p><b>General</b> infractions (WAC 137-28-220) cost privileges, extra duty, and confinement, never good time or visits. But four of them inside ninety days is a serious: 657. While you are on loss of privileges, going out to the yard is itself a serious, 658, and the yard does not always let you stay in.</p>
+      <p><b>Serious</b> infractions go to a hearing. Plead guilty and the sanction is usually lighter, but you give up the appeal. Contest it and you will almost certainly lose. Sanctions follow DOC 460.050: good time by category, privileges, confinement, and mandatory sanctions like two years off the weight pile for a fight.</p>
+      <p><b>Custody</b> follows a score (DOC 300.380). Every serious takes points off it: 20 for a Category A, 15 for an assault, 10 for other Category B, 5 for C or D. Each month without a serious adds a programming point. Every six months a Plan Change Review moves you one custody level at a time: below 40 is Close, 40 to 55 Medium, 56 and up Minimum. Lose 20 points in one review period and a review team looks at demoting you sooner. Sometimes the facility overrides the score either way and keeps you where you are.</p>
+      <p><b>Administrative segregation</b> (DOC 320.200) takes you off the unit for up to thirty days. A fight always brings it. So can a riot or a demonstration. And a lieutenant can place anyone the facility sees as a threat, pending an investigation nobody explains.</p>
       <h3>Who you become</h3>
       <p>The way you meet trouble sticks. Fight, tell, go to your car, or back down: repeat one and the yard learns it, and going against it costs Standing. Keep repeating it and the other ways close for good. A slow stretch without it can wear a habit down. A locked one almost never lets go.</p>
       <h3>A month</h3>
-      <p>Count card → your scenes → the Eyes → mail call. At mail call you write a sentence home. In the epilogue, your letters are read next to your public card.</p>
+      <p>Count card → your scenes → the Eyes and any hearings → visiting and messages. You write a sentence home. In the epilogue, your messages are read next to your public card.</p>
       <h3>What to expect</h3>
       <p>Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
       <button className="primary" onClick={p.onBack}>Back</button>
@@ -252,10 +257,15 @@ function Hud(p: { g: Game; canRewind: boolean; countTime: () => void; onQuit: ()
         <span>Standing <span className="pips">{Array.from({ length: 5 }, (_, i) => <i key={i} className={i < g.standing ? 'on' : ''} />)}</span></span>
         <span>Support <span className="pips">{Array.from({ length: 3 }, (_, i) => <i key={i} className={i < g.support ? 'on' : ''} />)}</span></span>
         <span>Commissary <b>{g.commissary}</b></span>
+        <span>Custody <b>{cap(g.custody)}</b> <span className="dim small">score {custodyScore(g)}</span></span>
         {g.rumors.length > 0 && <span className="tag">{g.rumors.length} rumor{g.rumors.length > 1 ? 's' : ''}</span>}
         {g.proven && <span className="tag">Proven</span>}
         {grooveLabel(g) && <span className="tag">{grooveLabel(g)}</span>}
         {g.hurt && <span className="tag hurt">Hurt</span>}
+        {g.mo.seg ? <span className="tag hurt">Ad Seg</span> : g.mo.confined ? <span className="tag hurt">Confined to cell</span> : onSheet(g) && <span className="tag hurt">On the sheet: no yard</span>}
+        {g.phoneUntil >= g.m && <span className="tag">No phone</span>}
+        {g.efv.status === 'approved' && <span className="tag">EFV approved</span>}
+        {g.efv.status === 'suspended' && <span className="tag">EFV suspended</span>}
       </div>
     </div>
   );
@@ -298,15 +308,42 @@ export function GameView(p: { g: Game; act: Act; countTime: () => void; canRewin
       {g.phase === 'card' && <CardView g={g} act={act} />}
       {g.phase === 'result' && g.result && <ResultView g={g} act={act} />}
       {g.phase === 'hub' && <Hub g={g} act={act} />}
-      {g.phase === 'eyes' && (
-        <div className="panel">
-          <h2>The Eyes</h2>
-          <Lines lines={g.report} />
-          <button className="primary" onClick={() => act(toMail)}>Mail call</button>
-        </div>
-      )}
+      {g.phase === 'eyes' && <Eyes g={g} act={act} />}
       {g.phase === 'mail' && <Mail g={g} act={act} />}
     </>
+  );
+}
+
+function Eyes({ g, act }: { g: Game; act: Act }) {
+  const h = g.hearings[0];
+  const appealable = g.infractions
+    .map((x, i) => ({ x, i }))
+    .filter(({ x }) => x.serious && x.plea === 'contest' && x.result === 'guilty' && !x.appeal && x.m === g.m);
+  return (
+    <div className="panel">
+      <h2>The Eyes</h2>
+      <Lines lines={g.report} />
+      {h ? (
+        <>
+          <h3>Hearing: {h.code}, {violation(h.code).title}</h3>
+          <p className="dim small">
+            {h.source}. A lieutenant hears it, on the record. A guilty plea usually means a lighter sanction, and you cannot appeal the finding.
+            Contesting almost never wins.{g.hearings.length > 1 ? ` ${g.hearings.length - 1} more after this one.` : ''}
+          </p>
+          <div className="grid2 stack">
+            <button className="choice" onClick={() => act((s) => plead(s, 'guilty'))}><b>Plead guilty</b><span className="dim small">Take the lower sanction.</span></button>
+            <button className="choice" onClick={() => act((s) => plead(s, 'contest'))}><b>Plead not guilty</b><span className="dim small">Make them prove it.</span></button>
+          </div>
+        </>
+      ) : (
+        <>
+          {appealable.map(({ x, i }) => (
+            <button key={i} className="small" onClick={() => act((s) => appeal(s, i))}>Appeal {x.code} to the Superintendent</button>
+          ))}
+          <button className="primary" onClick={() => act(toMail)}>Visiting and messages</button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -377,7 +414,9 @@ function Hub({ g, act }: { g: Game; act: Act }) {
       <div className="panel">
         <h2>{done ? 'End of the month' : 'The tier'}</h2>
         <p className="dim">
-          {done
+          {g.mo.seg
+            ? 'Administrative segregation. The month passes in a cell off the unit. Staff will still roll the Eyes on anything already written down.'
+            : done
             ? 'Your scenes are done. Staff will roll the Eyes on anything that got written down.'
             : g.mo.lockdown
               ? 'Lockdown. One scene, in your cell.'
@@ -400,6 +439,7 @@ function Hub({ g, act }: { g: Game; act: Act }) {
         </div>
       )}
       <TierBoard g={g} />
+      <Outside g={g} act={act} />
       <div className="panel">
         <h3>On the yard</h3>
         <div className="row">
@@ -414,6 +454,28 @@ function Hub({ g, act }: { g: Game; act: Act }) {
         <StopCounting g={g} act={act} />
       </div>
     </>
+  );
+}
+
+function Outside({ g, act }: { g: Game; act: Act }) {
+  const visiting = new Set(visitingTies(g).map((t) => t.id));
+  const block = efvBlock(g);
+  return (
+    <div className="panel">
+      <h3>Outside</h3>
+      {!g.ties.length && <p className="dim small">No one.</p>}
+      {g.ties.map((t) => {
+        const on = tieActive(g, t);
+        const status = !on
+          ? t.gone ? 'gone' : 'cannot come without the adult who brought them'
+          : visiting.has(t.id) ? 'can visit' : !t.visits ? 'messages only' : 'waiting on visitor approval';
+        return <div key={t.id} className={`small ${on ? '' : 'dim'}`}>{t.who[0].toUpperCase() + t.who.slice(1)}: {status}</div>;
+      })}
+      <div style={{ marginTop: 8 }}>
+        <button className="small" disabled={!!block} onClick={() => act(applyEfv)}>Apply for an extended family visit</button>
+        {block && <div className="small dim">{block}</div>}
+      </div>
+    </div>
   );
 }
 
@@ -447,13 +509,13 @@ function StopCounting({ g, act }: { g: Game; act: Act }) {
 function Mail({ g, act }: { g: Game; act: Act }) {
   const slots = letterSlots(g);
   const [lines, setLines] = useState<string[]>(Array.from({ length: slots }, () => ''));
-  const notebook = g.support === 0;
-  const to = outside(g.char!.outsideId).to;
+  const to = primaryTie(g)?.to;
+  const notebook = !to;
   const set = (i: number, v: string) => setLines((a) => a.map((x, j) => (j === i ? v : x)));
   return (
     <>
       <div className="panel">
-        <h2>Mail call</h2>
+        <h2>Visiting and messages</h2>
         <Lines lines={g.lines} />
         {g.visitPending && (
           <>
@@ -470,7 +532,9 @@ function Mail({ g, act }: { g: Game; act: Act }) {
         <p className="dim small">
           {notebook
             ? 'No one is waiting, so you write one line in a notebook no one reads, addressed to no one.'
-            : 'One private sentence home. Staff read every message before it goes out, and may delay it or hold it. A message that mentions staff, the yard, or a grievance is the likeliest to be held. It stays face down until the epilogue.'}
+            : g.commsUntil >= g.m
+              ? 'Your messages are restricted by a sanction. You can write it. It will not go out.'
+              : 'One private sentence home. Staff read every message before it goes out, and may delay it or hold it. A message that mentions staff, the yard, or a grievance is the likeliest to be held. It stays face down until the epilogue.'}
           {slots > 1 ? ` You may write ${slots} lines this month.` : ''}
         </p>
         {lines.map((l, i) => (
@@ -638,10 +702,13 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
           ? 'You left the yard for protective custody.'
           : 'You were carried out on a medical.';
 
+  const meet = visitingTies(g)[0] ?? activeTies(g)[0];
   const gate =
     g.ending !== 'released' ? null
-      : g.support >= 1 ? `At the gate: ${out.who.toLowerCase()}. Your Support when you walked out was ${g.support}.`
+      : meet ? `At the gate: ${meet.who}. Your Support when you walked out was ${g.support}.`
         : 'At the gate: no one. You leave with a bus ticket and whatever is on your books.';
+  if (g.flags.ppm) notes.push('You walked out with a referral for prosecution behind you: Persistent Prison Misbehavior. The sentence was not the end of it.');
+  const file = g.infractions.filter((x) => x.result !== 'not_guilty');
 
   const all = g.letters.flatMap((l) => l.lines.map((ln) => ({ ...ln, m: l.m, notebook: l.notebook })));
   const delivered = all.filter((l) => l.status !== 'held');
@@ -683,6 +750,22 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
             <p className="small dim">Staff needed no reason and gave none.</p>
             {held.map((t, i) => <div key={`h${i}`} className="letter"><span className="small">Month {t.m}</span><br />{t.text}</div>)}
           </>
+        )}
+      </div>
+
+      <div className="panel">
+        <h3>Your file</h3>
+        {!file.length && <p className="dim">Nothing in your central file. That is rare.</p>}
+        {file.map((x, i) => (
+          <div key={i} className="line small">
+            Month {x.m}: {x.code} {violation(x.code).title} · {x.result === 'onsite' ? 'handled on site' : x.serious ? `serious${x.plea === 'guilty' ? ', pled guilty' : ', contested'}${x.days ? `, ${x.days} days good time` : ''}${x.appeal ? `, appeal ${x.appeal}` : ''}` : x.result === 'reduced' ? 'reduced to a general' : 'general'}
+            {x.discretionary ? <span className="dim"> · the officer's call</span> : ''}
+          </div>
+        ))}
+        {file.length > 0 && (
+          <p className="small dim">
+            {g.gctLost} days of good conduct time taken. {g.classPoints} points taken off your custody score. {g.segPlacements.length ? `${g.segPlacements.length} month${g.segPlacements.length > 1 ? 's' : ''} in segregation${g.segPlacements.some((x) => x.discretionary) ? ', some on nothing but a lieutenant\'s say-so' : ''}.` : ''} {file.filter((x) => x.discretionary).length} write-ups that came down to which officer was on shift, and how that officer looked at you.
+          </p>
         )}
       </div>
 

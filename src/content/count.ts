@@ -24,8 +24,8 @@ export const COUNT_CARDS: Card[] = [
   count({ id: 'strike', officer: 'Haskins', title: 'The Strike',
     text: 'A work stoppage is called. Every man on the unit chooses in secret: hold, or break. You will find out what the others chose when it is over.',
     choices: [
-      { id: 'hold', label: 'Hold', text: 'If everyone holds, everyone refills a box. If anyone breaks, those who held are written up.', special: 'strikeHold' },
-      { id: 'break', label: 'Break', text: 'Break alone and staff reward you with two boxes. Break with others and nothing changes. If everyone breaks, the whole unit is written up.', special: 'strikeBreak' }
+      { id: 'hold', label: 'Hold', text: 'If everyone holds, everyone refills a box. If anyone breaks, those who held are written up: 682 Work stoppage, 652 Group demonstration, or 651 Inciting a riot, whichever staff choose.', special: 'strikeHold' },
+      { id: 'break', label: 'Break', text: 'Break alone and staff reward you with two boxes. Break with others and nothing changes.', special: 'strikeBreak' }
     ] }),
   count({ id: 'class_canceled', officer: 'Reyes', title: 'Class Canceled',
     text: "A sign on the education door. The AA degree class is canceled again: the instructor's contract wasn't renewed, and the textbooks are still in the mailroom. Anyone who spent a scene working toward their degree gains nothing this month. The sign-up sheet stays on the wall.", effect: { log: 'The sign-up sheet stays on the wall.' } }),
@@ -38,20 +38,20 @@ export const COUNT_CARDS: Card[] = [
   count({ id: 'k9', officer: 'Okafor', rule: 'k9', title: 'K-9 Sweep',
     text: 'The dogs come through at count. Any cell with drugs or pills (yours or your cellie\'s) rolls 1 extra blue die.' }),
   count({ id: 'random_ua', officer: 'Reyes', rule: 'ua', title: 'Random UA',
-    text: 'Names called for urinalysis. Each player rolls a d6; on a 1, you are called. If you gave in to a drug or drinking Pull this act, it is an automatic minor.' }),
+    text: 'Names called for urinalysis, any time of day. Each player rolls a d6; on a 1, you are called. If you gave in to a drug or drinking Pull this act, you come up dirty: 675, a serious. Clean or not, you have a set time to produce a sample. Failing to produce is a 676, and it is treated as a dirty.' }),
   count({ id: 'new_officer', officer: 'Dahl', rule: 'dahl', title: 'The New Officer',
     text: 'First week on the unit. Dahl writes up everything he sees: +1 blue die on every discretionary rule this month, for everyone.' }),
   count({ id: 'brandt_on_shift', officer: 'Brandt', rule: 'brandt', title: 'Brandt on Shift',
     text: 'He remembers names. Anyone who filed a grievance this game rolls 2 extra blue dice this month.' }),
   count({ id: 'reyes_on_shift', officer: 'Reyes', rule: 'reyes', title: 'Reyes on Shift',
-    text: 'Firm, fair, tired. The first minor anyone takes this month becomes a warning instead.' }),
+    text: 'Firm, fair, tired. The first general violation anyone commits this month is handled on site: a Behavior Observation Entry, no infraction report.' }),
   count({ id: 'double_shift', officer: 'Moss', rule: 'double', title: 'Double Shift',
     text: "Sixteen hours in. Moss isn't looking: -1 blue die on every roll this month (to a minimum of 0)." }),
   count({ id: 'property_limits', officer: 'Okafor', rule: 'property', title: 'Property Limits',
     text: 'New property matrix posted. Anything over the new limit is contraband. Anyone holding more than 10 store must give up the extra or roll 1 blue die.',
     choices: [
       { id: 'give', label: 'Give up the extra', text: 'Your store drops to 10.', effect: { commissaryCap: 10, log: 'You give up everything over 10.' } },
-      { id: 'keep', label: 'Keep it', text: 'Roll 1 blue die.', roll: { blue: 1 } }
+      { id: 'keep', label: 'Keep it', text: 'Roll 1 blue die. Caught: a general (356).', roll: { blue: 1, gen: '356' } }
     ] }),
   count({ id: 'price_increase', officer: 'Haskins', rule: 'price', title: 'Price Increase',
     text: 'New commissary prices. Everything costs 1 extra store this month, including messages home.' }),
@@ -74,13 +74,13 @@ export const PROMPTS: Card[] = [
   prompt({ id: 'leak_told', title: 'A Name Slips',
     text: "An officer lets a name slip while he's counting: a man on your tier, one of your own car, he says, 'has been very helpful lately.' He says it to you, and looks at the wall while he does. Staff aren't bound to protect anyone, and the yard is now divided, which was the point.",
     choices: [
-      { id: 'retaliate', label: 'Retaliate', tag: 'violent', text: 'Play it as a fight: roll the Eyes. Gain 1 Standing. Caught is a major.', roll: fightRoll(1, 3, 0), effect: fightEffect() },
+      { id: 'retaliate', label: 'Retaliate', tag: 'violent', text: 'Play it as a fight: roll the Eyes. Gain 1 Standing. Caught: 505 Fighting, a serious.', roll: fightRoll(1, 3, 0), effect: fightEffect() },
       { id: 'let_go', label: 'Let it go', tag: 'letGo', text: 'Lose 1 Standing. The yard watched you take it.', effect: { standing: -1 } }
     ] }),
   prompt({ id: 'leak_about', title: 'Your Name Slips',
     text: "You hear it from three people before lunch: you were seen leaving the bubble. You weren't. It doesn't matter. Staff sometimes hang a snitch label on someone who never talked.",
     choices: [
-      { id: 'confront', label: 'Hunt down the source', tag: 'violent', text: 'Roll the Eyes. Gain 1 Standing. Caught is a major. One rumor comes down.', roll: fightRoll(1, 3, 0), effect: { ...fightEffect(), removeRumors: 1 } },
+      { id: 'confront', label: 'Hunt down the source', tag: 'violent', text: 'Roll the Eyes. Gain 1 Standing. Caught: 505 Fighting, a serious. One rumor comes down.', roll: fightRoll(1, 3, 0), effect: { ...fightEffect(), removeRumors: 1 } },
       { id: 'deny', label: 'Deny it', text: 'Spend 1 Standing to pull one rumor.', effect: { standing: -1, removeRumors: 1 } },
       { id: 'ride', label: 'Let it ride', text: 'A cooperation rumor gets pinned to you, true or not.', effect: { coopRumors: 1 } }
     ] }),
@@ -100,7 +100,7 @@ export const PROMPTS: Card[] = [
     text: 'You have no standing, and everyone on the tier has noticed. Somebody has decided you are this month\'s problem to solve: extortion, theft, or somebody\'s dirty work. They say you have until count.',
     choices: [
       { id: 'pay', label: 'Pay them to be left alone', needs: { commissary: 4 }, text: 'Pay 4 store. It buys the month, not the year.', effect: { commissary: -4 } },
-      { id: 'work', label: 'Carry something across the tier for them', text: 'Roll the Eyes; a minor if caught. Gain 1 Standing: they remember who was useful.', roll: { blue: 1, white: 2, severity: 'minor' }, effect: { standing: 1 } },
+      { id: 'work', label: 'Carry something across the tier for them', text: 'Roll the Eyes; caught is a general (053). Gain 1 Standing: they remember who was useful.', roll: { blue: 1, white: 2, severity: 'minor', gen: '053' }, effect: { standing: 1 } },
       { id: 'refuse', label: 'Say no', text: 'A hard hurt check. Nobody enjoys being told no by a man with no standing.', effect: { hurtCheck: 2 } }
     ] }),
   prompt({ id: 'living_with_it', title: 'Living With It',
@@ -113,6 +113,12 @@ export const PROMPTS: Card[] = [
       { id: 'tell', label: 'Tell staff', text: 'He takes the charge alone. Pin a cooperation rumor to yourself.', effect: { coopRumors: 1, informed: true, newCellie: true } }
     ] }),
   prompt({ id: 'efv', title: 'Extended Family Visit',
-    text: 'Three clean months in a row. You spend your next scene with your family: no Yard card, no Eyes. You write two lines home.',
-    effect: { extraLine: true, flag: 'efv_used' } })
+    text: 'Two nights in a trailer inside the fence. A kitchen, a couch, a door you can close yourself. Staff still count you. For two days nobody calls you by your number. No Yard card, no Eyes. You write two lines home.',
+    effect: { extraLine: true, flag: 'efv_used' } }),
+  prompt({ id: 'send_off', title: 'Going Home',
+    text: "A man from your car goes home Friday. The car walks him to the gate line on the yard, every one of them. You are on loss of privileges, and your photo is on the sheet in the bubble.",
+    choices: [
+      { id: 'go', label: 'Go out anyway', text: '+1 Standing. Being on the yard under sanction is a 658, a serious: roll 2 blue dice, because every officer has your photo.', roll: { blue: 2, severity: 'major', ser: '658' }, effect: { standing: 1 } },
+      { id: 'stay', label: 'Stay in', text: '-1 Standing. He will understand. The car might not.', effect: { standing: -1 } }
+    ] })
 ];

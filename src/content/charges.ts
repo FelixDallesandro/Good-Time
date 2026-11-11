@@ -18,7 +18,7 @@ export const CHARGES: Charge[] = [
     truth: 'It was a job, with a crew and a van. You told yourself the stores could afford it.',
     pull: {
       id: 'pull_retail', rule: 'retail', title: "When commissary comes in and you're broke",
-      text: 'Give in: lift from the line or the cart. Roll 1 blue, 2 white. +2 store if clean.'
+      text: 'Give in: lift from the line or the cart. Roll 1 blue, 2 white. +2 store if clean. Caught: a general (354) or a serious (741), depending on how staff value it.'
     }
   },
   {
@@ -27,7 +27,7 @@ export const CHARGES: Charge[] = [
     truth: 'You never touched anyone. You touched four hundred accounts, and each had a person.',
     pull: {
       id: 'pull_identity', rule: 'identity', title: 'When someone leaves their tablet logged in',
-      text: "Give in: move their store to yours. +3 store; Staff rolls 1 gray at mail call. If caught, it's a major and the victim learns your name."
+      text: "Give in: move their store to yours. +3 store; Staff rolls 1 gray at mail call. If caught, it's 739 (soliciting identification information), a serious, and the victim learns your name."
     }
   },
   {
@@ -36,7 +36,7 @@ export const CHARGES: Charge[] = [
     truth: 'You were the middle. Everybody above you got away, and everybody below you was a customer.',
     pull: {
       id: 'pull_delivery', rule: 'delivery', title: 'When someone needs something and you know where to get it',
-      text: 'Give in: broker it. +3 store, and run a debt string to whoever supplied it. Roll 2 white, 1 gray.'
+      text: 'Give in: broker it. +3 store, and run a debt string to whoever supplied it. Roll 2 white, 1 gray. Caught: 665 Trafficking, a Category A, with a mandatory loss of 75 days of good time.'
     }
   },
   {
@@ -45,7 +45,7 @@ export const CHARGES: Charge[] = [
     truth: 'It was never about the high. It was about making the nights short.',
     pull: {
       id: 'pull_possession', rule: 'possession', title: 'When someone offers you something to get through the night',
-      text: "Give in: use. Lose 2 store; skip your next Pull roll (you're not thinking clearly). Roll 1 blue at count. A failed UA (Count card) is an automatic minor."
+      text: "Give in: use. Lose 2 store; skip your next Pull roll (you're not thinking clearly). Roll 1 blue at count (caught: 667 Possession, a serious). A Random UA this act comes up dirty: 675."
     }
   },
   {
@@ -54,7 +54,7 @@ export const CHARGES: Charge[] = [
     truth: 'You think about her name every night, and the drinking is how you stop.',
     pull: {
       id: 'pull_vehicular', rule: 'vehicular', title: "When there's pruno going around",
-      text: "Give in: drink. Roll 1 blue at count. If caught, a minor; if you're also in a fight that month, it's a major."
+      text: "Give in: drink. Roll 1 blue at count. Caught: 675, a serious. A Random UA this act comes up dirty."
     }
   },
   {
@@ -81,7 +81,7 @@ export const CHARGES: Charge[] = [
     truth: 'It was for protection. That is what everyone says, and sometimes it is even true.',
     pull: {
       id: 'pull_firearm', rule: 'firearm', title: 'When someone offers you a piece',
-      text: 'Give in: take the shank and hide it. While you hold it, +1 on your Threats roll; every Random Search is a major for you if caught.'
+      text: 'Give in: take the shank and hide it. While you hold it, +1 on your Threats roll; if a search finds it, it is 602 Weapon, a Category A.'
     }
   },
   {
@@ -90,7 +90,7 @@ export const CHARGES: Charge[] = [
     truth: 'You were scared, not guilty. By the time that stopped mattering, it was a felony.',
     pull: {
       id: 'pull_eluding', rule: 'eluding', title: 'When an officer gives you an order that makes no sense',
-      text: "Give in: you don't comply. Discretionary: roll 1 blue plus Conspicuity. +1 Standing if clean."
+      text: "Give in: you don't comply. Discretionary: roll 1 blue plus Conspicuity. Caught: a general (103) or a serious (509 Refusing a direct order), the officer's choice. +1 Standing if clean."
     }
   },
   {
@@ -99,7 +99,7 @@ export const CHARGES: Charge[] = [
     truth: 'You kept telling yourself you only wanted to hear her say it was over. She did, twice.',
     pull: {
       id: 'pull_nocontact', rule: 'nocontact', title: "When you know you shouldn't call her",
-      text: "Give in: you call from someone else's tablet. Roll 1 gray. If caught, it's a major, and your Support drops by 1."
+      text: "Give in: you call from someone else's tablet. Roll 1 gray. If caught, it's 718 (communication in violation of a court order), a serious; your messages are restricted and your Support drops by 1."
     }
   },
   {

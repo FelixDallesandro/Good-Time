@@ -3,8 +3,12 @@ import {
   PULL_STICKY, YARD, background, cellie, charge, codeMove, facility, outside, CODE_MOVES
 } from './content';
 import { d, next, pickN, shuffle } from './rng';
+import {
+  GENERAL_SANCTIONS, NO_WEIGHTS, PETTY, PHONE_LOSS, SEG_CODES, SERIOUS_SANCTIONS, TRAFFICKING_GCT, violation
+} from '../content/violations';
 import type {
-  Card, Character, Choice, Cond, Effect, Game, Groove, Month, Officer, PullDef, RollSpec, RumorTag, Stat, Style
+  Card, Character, Choice, Cond, Effect, Game, Groove, Hearing, Infraction, Month, Officer, PullDef, RollSpec, RumorTag,
+  Stat, Style, Tie, TieDef, TieOp
 } from './types';
 
 export const STATS: Stat[] = ['nerve', 'hustle', 'cool', 'heart'];
@@ -172,7 +176,7 @@ function addBreak(
   s: Game,
   title: string,
   spec: RollSpec,
-  opts: { forced?: 'major' | 'minor'; onClean?: Effect; onCaught?: Effect; fightMajor?: boolean; hustle?: boolean } = {}
+  opts: { forced?: 'major' | 'minor'; onClean?: Effect; onCaught?: Effect; hustle?: boolean } = {}
 ) {
   const dice = computeDice(s, spec);
   s.blueOnce = 0;
@@ -181,7 +185,8 @@ function addBreak(
     dice: { blueNo: dice.blueNo, blue: dice.blue, white: dice.white, gray: dice.gray, rumor: dice.rumor, applies: dice.applies },
     severity: opts.forced ?? spec.severity ?? 'rolled',
     forced: opts.forced ?? false,
-    fightMajor: opts.fightMajor,
+    gen: spec.gen,
+    ser: spec.ser ?? (opts.forced === 'major' || spec.severity === 'major' ? '505' : undefined),
     hustle: opts.hustle,
     onClean: opts.onClean,
     onCaught: opts.onCaught
@@ -197,18 +202,21 @@ function emptyMonth(officer: Officer): Month {
   return {
     officer, noBlue: false, blueMonth: 0, discBlue: 0, testWhite: 0, warn: false, noVisits: false,
     noMessages: false, delayMessages: false, scenesLeft: 0, sceneInit: false, lockdown: false,
-    caught: false, fought: false, searched: false, breaks: [], medicalDone: false, notes: []
+    caught: false, fought: false, searched: false, breaks: [], medicalDone: false, notes: [],
+    confined: false, seriousGuilty: false, efvNow: false, seg: false
   };
 }
 
 export function newGame(facilityId: string, seed: number): Game {
   const f = facility(facilityId);
   const s: Game = {
-    v: 2, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, added: 0, m: 1, lastAct: '',
-    char: null, cellieId: '', draft: null, standing: f.startStanding, support: 0, boxes: 0, maxBoxes: f.boxes,
+    v: 3, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, added: 0, m: 1, lastAct: '',
+    char: null, cellieId: '', draft: null, standing: f.startStanding, support: 0, ties: [], boxes: 0, maxBoxes: f.boxes,
+    baseBoxes: f.boxes, gctLost: 0, classPoints: 0, crsBase: f.crs, progPoints: 0, infractions: [], hearings: [], lopUntil: 0, segUntil: 0, segPlacements: [], confinedUntil: 0,
+    phoneUntil: 0, commsUntil: 0, visitMonths: [], efv: { status: 'none', decide: 0, next: 0, until: 0, done: 0 },
     commissary: 5, rumors: [], strings: [], proven: false, consBonus: 0, hurt: false, contraband: 0, job: false,
     flags: {}, usedMoves: {}, pull: {}, privateFlipped: false, blueOnce: 0, blueNext: 0, extraLines: 0,
-    skipNext: 0, cleanStreak: 0, efv: false, visitPending: false, visitBanMonth: 0, visitBanAct: '', visitReadyMonth: 0, marks: 0,
+    skipNext: 0, visitPending: false, visitBanMonth: 0, visitBanAct: '', marks: 0,
     missionsDrawn: 0, monthly: [], deferred: [], yardDeck: [], yardDiscard: [], countDeck: [], queue: [],
     cur: null, result: null, mo: emptyMonth(OFFICERS[0]), letters: [], ledger: [], report: [], lines: [],
     actUsed: {}, groove: newGroove(), stats: { letGo: 0, fights: 0, informed: 0, putInWork: 0, pullGiven: 0, pullWalked: 0, caught: 0 },
@@ -288,7 +296,10 @@ export function draftPick(
     privateTag, knownOfficer, claim: ch.claim
   };
   s.sentence = bg.sentence;
-  s.support = clamp(out.support + (stats.heart.mod >= 1 ? 1 : 0), 0, 3);
+  // Support is the people on the Outside card. Heart +1 makes one of them hold on harder; with no one, it adds nothing.
+  s.ties = out.ties.map((t) => ({ ...t, gone: false, ready: 0 }));
+  if (stats.heart.mod >= 1 && s.ties.length) s.ties[0].weight += 1;
+  syncSupport(s);
   s.cellieId = pickN(s, CELLIES, 1)[0].id;
 
   s.pull[ch.pull.id] = { tallies: 0, torn: false };
@@ -378,6 +389,26 @@ function startMonth(s: Game) {
   s.lines = [];
   actChange(s, act);
   s.actUsed[act] ??= {};
+  resolveAppeals(s);
+  custodyReview(s);
+  const efvNow = efvMonth(s);
+  const seg = s.segUntil >= s.m;
+  const confined = !seg && s.confinedUntil >= s.m;
+  if (seg) L(s, 'Administrative segregation. The final review comes inside thirty days. No scenes this month.');
+  else if (s.segUntil === s.m - 1) {
+    L(s, 'Final review: released to general population.');
+    if (s.job) {
+      s.job = false;
+      L(s, 'You went to seg from the workers tier. That privilege is gone: no job, and a new cell on a regular tier.');
+      newCellie(s);
+    } else if (next(s) < 0.5) L(s, 'You go back to the same cell.');
+    else {
+      L(s, 'Your old cell has been filled. You are assigned a new one.');
+      newCellie(s);
+    }
+  }
+  if (confined) L(s, 'Confinement to cell: one scene this month, in your cell.');
+  else if (onSheet(s)) L(s, 'Loss of privileges: no yard, no gym, no dayroom. Your photo is on the sheet in the bubble.');
   const notes = s.lines.slice();
   s.lines = [];
   s.report = [];
@@ -385,6 +416,12 @@ function startMonth(s: Game) {
   const officer = OFFICERS.find((o) => o.name === first.officer) ?? OFFICERS[Math.floor(next(s) * OFFICERS.length)];
   s.mo = emptyMonth(officer);
   s.mo.notes = notes;
+  s.mo.efvNow = efvNow && !seg;
+  s.mo.seg = seg;
+  if (confined) {
+    s.mo.lockdown = true;
+    s.mo.confined = true;
+  }
   s.mo.blueMonth = s.blueNext;
   s.blueNext = 0;
   s.queue = [first];
@@ -397,6 +434,11 @@ function startMonth(s: Game) {
   if (has(s, 'informant') && !s.actUsed[act].informant && next(s) < 0.6) {
     s.actUsed[act].informant = true;
     s.queue.push(clone(PROMPTS.get('informant_call')!));
+  }
+  // under sanction, the yard still asks things of you
+  if (onSheet(s) && !confined && !seg && !s.actUsed[act].sendoff && next(s) < 0.35) {
+    s.actUsed[act].sendoff = true;
+    s.queue.push(clone(PROMPTS.get('send_off')!));
   }
   if (cellieOf(s).has && !s.flags.living_seen && s.m >= 2 && s.m <= 6 && next(s) < 0.5) {
     s.flags.living_seen = true;
@@ -439,6 +481,7 @@ function showNext(s: Game) {
 }
 
 function scenesFor(s: Game): number {
+  if (s.mo.seg) return 0;
   if (s.mo.lockdown) return 1;
   return s.standing === 0 ? 2 : 1;
 }
@@ -456,8 +499,11 @@ function enterHub(s: Game) {
 function unwanted(s: Game, c: Card): boolean {
   if (s.custody === 'minimum' && c.tag === 'politics') return true;
   if (c.id === 'put_in_work' && s.proven) return true;
-  // an EFV is on the line only for someone who could actually have one
-  if (c.id === 'the_visit' && !(visitsApproved(s) && facility(s.facilityId).efv)) return true;
+  // an EFV is on the line only for someone who actually has one on the schedule
+  if (c.id === 'the_visit' && !(s.efv.status === 'approved' && s.efv.next - s.m <= 1)) return true;
+  if (c.needsTie && !activeTies(s).some((t) => c.needsTie!.includes(t.role))) return true;
+  if (c.id === 'weight_pile' && s.flags.noWeights) return true;
+  if (c.id === 'leverage' && s.support === 0) return true;
   if (s.mo.lockdown && c.tag !== 'life') return true;
   if (c.tag === 'special') return false; // Missions and Leverage are never discarded by Standing
   const poliLocked = s.custody === 'close' || has(s, 'affiliated');
@@ -488,9 +534,27 @@ function drawYard(s: Game, exclude: string[] = []): Card {
   return clone(YARD.get('spread')!);
 }
 
-function presentYard(s: Game, card: Card) {
+/** On loss of privileges, a card that happens on the yard or in the dayroom asks first whether you go out at all. */
+function sheetCard(card: Card): Card {
+  const what = card.fronts?.[0] ?? card.text;
+  return {
+    id: 'on_sheet', kind: 'prompt', title: `On the Sheet: ${card.title}`,
+    text: `${what} It is happening on the yard, and you are on loss of privileges. Your photo is on the sheet in the bubble.`,
+    choices: [
+      { id: 'go', label: 'Go out anyway', text: 'Being out under sanction is a 658 (failing to comply with a sanction), a serious. Every officer has your photo: 2 blue dice. Then the card plays.', roll: { blue: 2, severity: 'major', ser: '658' } },
+      { id: 'stay', label: 'Stay in', text: card.tag === 'politics' ? '-1 Standing. Your car needed you out there.' : '-1 Standing. To the yard, it looks like backing down.', effect: { standing: -1 } }
+    ]
+  };
+}
+
+function presentYard(s: Game, card: Card, sheetOk = false) {
   const act = actOf(s);
   s.actUsed[act] ??= {};
+  if (!sheetOk && onSheet(s) && !s.mo.lockdown && (card.tag === 'politics' || card.tag === 'test') && !card.echo) {
+    s.cur = { card: sheetCard(card), source: 'prompt', origin: card.id };
+    s.phase = 'card';
+    return;
+  }
   let front: number | undefined;
   if (card.fronts?.length) {
     front = Math.floor(next(s) * card.fronts.length);
@@ -535,8 +599,8 @@ export function playScene(g: Game): Game {
   const s = clone(g);
   s.lines = [];
   s.mo.scenesLeft--;
-  if (s.efv) {
-    s.efv = false;
+  if (s.mo.efvNow) {
+    s.mo.efvNow = false;
     s.cur = { card: clone(PROMPTS.get('efv')!), source: 'prompt' };
     s.phase = 'card';
     return s;
@@ -619,6 +683,7 @@ function rawLock(s: Game, ch: Choice, failings: boolean): string | null {
   if (ch.needs?.commissary && s.commissary < ch.needs.commissary) return `Needs ${ch.needs.commissary} commissary`;
   if (ch.needs?.support && s.support < ch.needs.support) return `Needs Support ${ch.needs.support}`;
   if (ch.tag === 'violent' && s.hurt) return "You're hurt";
+  if (ch.phone && s.phoneUntil >= s.m) return 'Phone privileges restricted';
   if (!failings) return null;
   if (s.cur?.onlyViolent && ch.tag !== 'violent' && s.cur.card.tag === 'test') return "You're looking for a fight";
   if (ch.tag === 'letGo' && s.cur?.noLetGo) return 'Short Fuse';
@@ -712,6 +777,19 @@ export function choose(g: Game, id: string): Game {
   const ch = cardChoices(card).find((c) => c.id === id);
   if (!ch || lockReason(s, ch)) return g;
 
+  if (card.id === 'on_sheet' && cur.origin) {
+    const orig = YARD.get(cur.origin)!;
+    if (ch.id === 'go') {
+      addBreak(s, `Out under sanction: ${orig.title}`, ch.roll!);
+      presentYard(s, clone(orig), true);
+      return s;
+    }
+    apply(s, ch.effect, ch);
+    if (!orig.echo) s.yardDiscard.push(orig.id);
+    finish(s, ch.label);
+    return s;
+  }
+
   delete s.flags.__repeat;
   if (cur.source !== 'threat') noteStyle(s, ch); // a threat's follow-up is the same choice, not a second one
   if (ch.id === 'ok' && !card.choices?.length) countAuto(s, card);
@@ -758,7 +836,7 @@ function applyChoice(s: Game, card: Card, ch: Choice) {
     L(s, `Rolled ${r}${mod ? (mod > 0 ? ` +${mod}` : ` ${mod}`) : ''} against ${target}: ${ok ? 'it works.' : 'it does not.'}`);
     apply(s, ok ? c.pass : c.fail, ch);
   }
-  if (ch.auto) addBreak(s, `${card.title}: ${ch.label}`, {}, { forced: 'major' });
+  if (ch.auto) addBreak(s, `${card.title}: ${ch.label}`, { ser: ch.roll?.ser ?? '633' }, { forced: 'major' });
   else if (ch.roll) {
     addBreak(s, `${card.title}: ${ch.label}`, ch.roll, { onClean: ch.onClean, onCaught: ch.onCaught, hustle: ch.hustle });
   }
@@ -853,35 +931,35 @@ function giveIn(s: Game, def: PullDef) {
     case 'burglary': {
       const state = d(s, 6) <= 3;
       L(s, state ? "Staff says it was the state's." : "Staff says it was another prisoner's.");
-      addBreak(s, t, { blue: 1, white: 2 }, state
+      addBreak(s, t, { blue: 1, white: 2, ser: '555' }, state
         ? { onClean: { commissary: 2, standing: 1 } }
         : { onClean: { commissary: 2, flag: 'thief' }, onCaught: { standing: -3, log: 'Jailhouse thief.' } });
       break;
     }
     case 'retail':
-      addBreak(s, t, { blue: 1, white: 2 }, { onClean: { commissary: 2 } });
+      addBreak(s, t, { blue: 1, white: 2, gen: '354', ser: '741' }, { onClean: { commissary: 2 } });
       break;
     case 'identity':
       apply(s, { commissary: 3 });
-      addBreak(s, t, { gray: 1, severity: 'major' }, { onCaught: { echoes: ['payback'], log: 'The victim learns your name.' } });
+      addBreak(s, t, { gray: 1, severity: 'major', ser: '739' }, { onCaught: { echoes: ['payback'], log: 'The victim learns your name.' } });
       break;
     case 'delivery':
       apply(s, { commissary: 3, debt: 'whoever supplied it' });
-      addBreak(s, t, { white: 2, gray: 1 });
+      addBreak(s, t, { white: 2, gray: 1, ser: '665' });
       break;
     case 'possession':
       apply(s, { commissary: -2, flag: 'skip_pull' });
       s.flags.act_drug = true;
-      addBreak(s, t, { blue: 1 });
+      addBreak(s, t, { blue: 1, ser: '667' });
       break;
     case 'vehicular':
       s.flags.act_drug = true;
-      addBreak(s, t, { blue: 1, severity: 'minor' }, { fightMajor: true });
+      addBreak(s, t, { blue: 1, ser: '675' });
       break;
     case 'assault':
       s.mo.fought = true;
       s.stats.fights++;
-      addBreak(s, t, { blue: 1, white: 3, gray: 1, severity: 'major' });
+      addBreak(s, t, { ...fightSpec(), ser: '633' });
       apply(s, { standing: 1, hurtCheck: 1, echoes: ['payback'] });
       break;
     case 'robbery': {
@@ -902,22 +980,22 @@ function giveIn(s: Game, def: PullDef) {
     }
     case 'firearm':
       s.flags.shank = true;
-      L(s, 'You take the shank and hide it. +1 on your Threats; every Random Search is a major for you if caught.');
+      L(s, 'You take the shank and hide it. +1 on your Threats; if a search finds it, it is 602 Weapon, a Category A.');
       break;
     case 'eluding':
-      addBreak(s, t, { blue: 1, discretionary: true }, { onClean: { standing: 1 } });
+      addBreak(s, t, { blue: 1, discretionary: true, gen: '103', ser: '509' }, { onClean: { standing: 1 } });
       break;
     case 'nocontact':
-      addBreak(s, t, { gray: 1, severity: 'major' }, { onCaught: { support: -1 } });
+      addBreak(s, t, { gray: 1, severity: 'major', ser: '718' }, { onCaught: { support: -1 } });
       break;
     case 'trafficking':
       apply(s, { commissary: -2 });
       s.flags.hot = s.m;
-      addBreak(s, t, { white: 1 });
+      addBreak(s, t, { white: 1, gen: '351', ser: '714' });
       break;
   }
 }
-const fightSpec = (): RollSpec => ({ blue: 1, white: 3, gray: 1, severity: 'major' });
+const fightSpec = (): RollSpec => ({ blue: 1, white: 3, gray: 1, severity: 'major', ser: '505' });
 
 /* ------------------------------------------------------------------ */
 /* Count-card rules                                                    */
@@ -926,15 +1004,16 @@ const fightSpec = (): RollSpec => ({ blue: 1, white: 3, gray: 1, severity: 'majo
 function searchRoll(s: Game, title: string, base: { blue: number; search: boolean }) {
   s.mo.searched = true;
   const shank = !!s.flags.shank;
-  const sev = shank ? 'major' : 'rolled';
+  const inside = ['667', '602', '882'];
   if (s.contraband > 0 && !s.flags.cell_package) {
-    L(s, 'They find the package in your cell.');
-    addBreak(s, `${title}: the package`, {}, { forced: 'major' });
+    const code = inside[Math.floor(next(s) * inside.length)];
+    L(s, `They find the package in your cell, and open it. Now you know what you were holding: ${violation(code).title.toLowerCase()}.`);
+    addBreak(s, `${title}: the package`, { ser: code }, { forced: 'major' });
   } else if (s.flags.holding || shank) {
     const blue = base.blue + (s.flags.holding ? 2 : 0);
     s.flags.holding = false;
     L(s, 'You are holding. The search team is on your tier.');
-    addBreak(s, title, { blue, search: base.search, severity: sev });
+    addBreak(s, title, shank ? { blue, search: base.search, severity: 'major', ser: '602' } : { blue, search: base.search, gen: '053' });
   } else L(s, 'You were clean.');
   // the cell tag: whatever is found in a cell belongs to everyone in it
   const ce = cellieOf(s);
@@ -944,7 +1023,9 @@ function searchRoll(s: Game, title: string, base: { blue: number; search: boolea
     if (r >= ce.owns && ce.has) L(s, `${ce.name} owns his own. Nothing sticks to you.`);
     else {
       L(s, `${ce.has ? ce.name : 'Your cellie'} does not claim it. The cell tag lands on you.`);
-      addBreak(s, `${title}: cell tag`, { blue: base.blue, search: base.search, severity: ce.id === 'shank' ? 'major' : sev });
+      const code = s.contraband > 0 && s.flags.cell_package ? inside[Math.floor(next(s) * inside.length)] : ce.code ?? '053';
+      const serious = violation(code).cat !== 'general';
+      addBreak(s, `${title}: cell tag`, { blue: base.blue, search: base.search, severity: ce.id === 'shank' ? 'major' : 'rolled', gen: '053', ser: serious ? code : undefined });
     }
   }
 }
@@ -952,7 +1033,7 @@ function searchRoll(s: Game, title: string, base: { blue: number; search: boolea
 function countAuto(s: Game, card: Card) {
   switch (card.rule) {
     case 'memo':
-      addBreak(s, card.title, { blue: 1, discretionary: true });
+      addBreak(s, card.title, { blue: 1, discretionary: true, gen: '210', ser: '509' });
       break;
     case 'search':
       searchRoll(s, 'Random Search', { blue: 1, search: true });
@@ -965,15 +1046,18 @@ function countAuto(s: Game, card: Card) {
       const dirty = cellieOf(s).drugs || s.flags.act_drug;
       if (dirty) {
         L(s, 'The dogs stop at your door.');
-        addBreak(s, 'K-9 Sweep', { blue: 2 });
+        addBreak(s, 'K-9 Sweep', { blue: 2, ser: '667' });
       } else L(s, 'The dogs walk past.');
       break;
     }
     case 'ua':
       if (d(s, 6) === 1) {
         L(s, 'Your name is called for urinalysis.');
-        if (s.flags.act_drug) addBreak(s, 'Random UA', {}, { forced: 'minor' });
-        else L(s, 'You are clean.');
+        if (s.flags.act_drug) addBreak(s, 'Random UA: dirty', { ser: '675' }, { forced: 'major' });
+        else if (d(s, 6) === 1) {
+          L(s, 'You are clean, and you cannot go in the time they give you. Failing to produce counts as a dirty.');
+          addBreak(s, 'Random UA: failed to produce', { ser: '676' }, { forced: 'major' });
+        } else L(s, 'You are clean.');
       } else L(s, 'Your name is not called.');
       break;
     case 'dahl':
@@ -1027,7 +1111,7 @@ function countAuto(s: Game, card: Card) {
       L(s, 'Commissary +1. Test cards add 1 white die this month.');
       break;
     case 'clear':
-      if (s.flags.marked) addBreak(s, 'Count', { blue: 1 });
+      if (s.flags.marked) addBreak(s, 'Count', { blue: 1, gen: '214', ser: '653' });
       break;
   }
 }
@@ -1042,15 +1126,15 @@ function strike(s: Game, which: 'strikeHold' | 'strikeBreak') {
       L(s, 'Everyone held. The institution gives in.');
       addBoxes(s, 1);
     } else {
-      L(s, 'Organizers get written up.');
-      addBoxes(s, -2);
+      const code = ['682', '652', '651'][Math.floor(next(s) * 3)];
+      L(s, `The men who held get written up. Staff choose the charge: ${code}, ${violation(code).title.toLowerCase()}.`);
+      addBreak(s, 'The strike', { ser: code }, { forced: 'major' });
     }
   } else if (k === 0) {
     L(s, 'You were the only one to break. Staff reward whoever ended it.');
     addBoxes(s, 2);
   } else if (k === 3) {
-    L(s, 'Everyone broke. The strike collapses and the whole unit is written up.');
-    addBoxes(s, -1);
+    L(s, 'Everyone broke. The strike collapses before it starts.');
   } else L(s, 'Several broke. There is no reward to split.');
 }
 
@@ -1075,14 +1159,96 @@ function addBoxes(s: Game, n: number) {
   if (s.boxes !== before) L(s, n > 0 ? `Good time: +${s.boxes - before} box` : `Good time: ${s.boxes - before} box`);
 }
 
-function addSupport(s: Game, n: number) {
-  const before = s.support;
-  s.support = clamp(s.support + n, 0, 3);
-  if (s.support !== before) L(s, `Support ${s.support - before > 0 ? '+' : ''}${s.support - before} (now ${s.support})`);
-  if (before === 0 && s.support > 0) {
-    s.visitReadyMonth = s.m + VISIT_APPROVAL_MONTHS;
-    L(s, 'Someone is in touch again. Visits need an approved questionnaire, and that takes time.');
+/* ------------------------------------------------------------------ */
+/* Ties: Support is the people outside, one by one                     */
+/* ------------------------------------------------------------------ */
+
+/** Months a new visitor waits on the visitor application. */
+const VISIT_APPROVAL_MONTHS = 2;
+const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
+const guardianOf = (s: Game, t: Tie) => (t.guardian ? s.ties.find((x) => x.id === t.guardian) : undefined);
+
+/** A person counts while they are in your life. A child counts only while the adult who brings them does. */
+export function tieActive(s: Game, t: Tie): boolean {
+  if (t.gone || t.weight <= 0) return false;
+  if (t.minor && t.guardian) {
+    const g = guardianOf(s, t);
+    return !!g && !g.gone && g.weight > 0;
   }
+  return true;
+}
+export const activeTies = (s: Game) => (s.ties ?? []).filter((t) => tieActive(s, t));
+
+export function syncSupport(s: Game) {
+  s.support = clamp(activeTies(s).reduce((a, t) => a + t.weight, 0), 0, 3);
+}
+
+/** Who a message is addressed to: the first adult still in your life. */
+export function primaryTie(s: Game): Tie | undefined {
+  const a = activeTies(s);
+  return a.find((t) => !t.minor) ?? a[0];
+}
+
+/** Who could come to the visiting room this month. A child comes only with the adult who brings them. */
+export function visitingTies(s: Game): Tie[] {
+  return activeTies(s).filter((t) => {
+    if (!t.visits || s.m < t.ready) return false;
+    if (!t.minor) return true;
+    const g = guardianOf(s, t);
+    return !!g && g.visits && s.m >= g.ready;
+  });
+}
+
+function logSupport(s: Game, before: number) {
+  if (s.support !== before) L(s, `Support ${sign(s.support - before)} (now ${s.support})`);
+}
+
+function tieOps(s: Game, ops: TieOp[]) {
+  const before = s.support;
+  for (const op of ops) {
+    const t = s.ties.find((x) => x.id === op.id && !x.gone);
+    if (!t || !tieActive(s, t)) continue;
+    const dependents = s.ties.filter((x) => x.guardian === t.id && tieActive(s, x));
+    if (op.gone) t.gone = true;
+    if (op.delta) {
+      t.weight = Math.max(0, t.weight + op.delta);
+      if (t.weight === 0) t.gone = true;
+    }
+    if (op.why) L(s, op.why);
+    else if (t.gone) L(s, `${cap(t.who)} is gone.`);
+    if (t.gone) for (const dep of dependents) L(s, `${cap(dep.who)} cannot visit without ${t.who}. Messages to a minor need a parent's approval.`);
+  }
+  syncSupport(s);
+  logSupport(s, before);
+}
+
+function addTie(s: Game, def: TieDef & { wait?: number; ifNone?: boolean }) {
+  if (def.ifNone && activeTies(s).length) return;
+  const before = s.support;
+  const wait = def.wait ?? VISIT_APPROVAL_MONTHS;
+  const { wait: _w, ifNone: _n, ...rest } = def;
+  s.ties.push({ ...rest, id: s.ties.some((t) => t.id === def.id) ? `${def.id}_${s.m}` : def.id, gone: false, ready: s.m + wait });
+  L(s, `${cap(def.who)} is in touch.`);
+  if (def.visits && wait > 0) L(s, 'Visits wait on an approved visitor application, and that takes time. Messages and money come first.');
+  if (!def.visits) L(s, 'Messages only: no visits.');
+  syncSupport(s);
+  logSupport(s, before);
+}
+
+/** A change to Support that names no one lands on the person closest to you. */
+function addSupport(s: Game, n: number) {
+  if (!n) return;
+  const p = primaryTie(s);
+  if (n > 0) {
+    if (!p) {
+      addTie(s, { id: 'someone', who: 'someone from before', to: 'you', role: 'friend', weight: n, visits: true, efv: false });
+      return;
+    }
+    const before = s.support;
+    p.weight += n;
+    syncSupport(s);
+    logSupport(s, before);
+  } else if (p) tieOps(s, [{ id: p.id, delta: n }]);
 }
 
 function flipPrivate(s: Game, extra = 0) {
@@ -1229,9 +1395,11 @@ function apply(s: Game, e: Effect | undefined, ch?: Choice) {
     }
   }
   if (e.support) addSupport(s, e.support);
+  if (e.ties) tieOps(s, e.ties);
+  if (e.newTie) addTie(s, e.newTie);
   if (e.supportSet !== undefined) {
-    const target = e.supportSet === 0 ? 0 : Math.max(s.support, e.supportSet);
-    if (target !== s.support) addSupport(s, target - s.support);
+    if (e.supportSet === 0) tieOps(s, activeTies(s).map((t) => ({ id: t.id, gone: true })));
+    else if (s.support < e.supportSet) addSupport(s, e.supportSet - s.support);
   }
   if (e.skipScene) {
     for (let i = 0; i < e.skipScene; i++) {
@@ -1287,6 +1455,7 @@ function apply(s: Game, e: Effect | undefined, ch?: Choice) {
     s.mo.lockdown = true;
     L(s, 'Lockdown: one scene, in your cell.');
   }
+  if (e.segSafety && next(s) < e.segSafety) placeSeg(s, 'for your own safety. The paperwork says you are not in trouble', false);
   if (e.log) L(s, e.log);
 }
 
@@ -1406,8 +1575,7 @@ export function stopCounting(g: Game): Game {
   const s = clone(g);
   s.lines = [];
   s.flags.stopped = true;
-  s.boxes = 0;
-  s.maxBoxes = 0;
+  syncBoxes(s);
   L(s, 'You stop counting days. Every box is erased: you will serve your full sentence.');
   addStanding(s, 2);
   if (s.m >= s.sentence) s.ending = 'released';
@@ -1418,21 +1586,158 @@ export function stopCounting(g: Game): Game {
 /* Eyes, mail call                                                     */
 /* ------------------------------------------------------------------ */
 
-function eraseBoxes(s: Game, n: number) {
-  if (s.flags.stopped) return 0;
-  const before = s.boxes;
-  s.boxes = Math.max(0, s.boxes - n);
-  return before - s.boxes;
+/* ------------------------------------------------------------------ */
+/* Discipline: WAC 137-28, DOC 460.000, DOC 460.050                    */
+/* ------------------------------------------------------------------ */
+
+/** Loss of privileges: yard, gym, dayroom. C/Os keep a sheet with the photo of everyone on it. */
+export const onSheet = (s: Game) => s.lopUntil >= s.m;
+const monthsFor = (days: number) => Math.max(1, Math.ceil(days / 30));
+
+/** Good time is lost 30 days to a box, and lost for good: it lowers the boxes you can ever fill. */
+export function syncBoxes(s: Game) {
+  if (s.flags.stopped) {
+    s.maxBoxes = 0;
+    s.boxes = 0;
+    return;
+  }
+  s.maxBoxes = Math.max(0, s.baseBoxes - Math.floor(s.gctLost / 30));
+  s.boxes = Math.min(s.boxes, s.maxBoxes);
 }
 
-function major(s: Game) {
-  if (s.custody === 'minimum') {
-    s.custody = 'medium';
-    s.facilityId = 'harlan';
-    s.maxBoxes = facility('harlan').boxes;
-    s.boxes = Math.min(s.boxes, s.maxBoxes);
-    L(s, 'You are transferred to Harlan for the rest of your sentence.');
-  } else if (s.custody === 'close') addSentence(s, 1);
+/** First, second, or third-and-after offense: general within 6 months, serious within 12. */
+function offenseTier(s: Game, serious: boolean): 0 | 1 | 2 {
+  const window = serious ? 12 : 6;
+  const n = s.infractions.filter(
+    (x) => x.serious === serious && (x.result === 'guilty' || x.result === 'reduced') && s.m - x.m < window
+  ).length;
+  return Math.min(2, n) as 0 | 1 | 2;
+}
+
+function generalInfraction(s: Game, code: string, source: string, discretionary = false) {
+  const v = violation(code);
+  if (s.mo.warn) {
+    s.mo.warn = false;
+    s.infractions.push({ m: s.m, code, source, serious: false, result: 'onsite', discretionary });
+    L(s, `${source}: ${s.mo.officer.name} handles it on site. A Behavior Observation Entry goes in your file. No infraction report.`);
+    return;
+  }
+  const tier = offenseTier(s, false);
+  s.infractions.push({ m: s.m, code, source, serious: false, result: 'guilty', discretionary });
+  L(s, `General infraction ${code}: ${v.title}. A sergeant hears it within five business days. Guilty.`);
+  const parts = [`${GENERAL_SANCTIONS.privileges[tier]} days loss of privileges (yard, gym, dayroom)`];
+  s.lopUntil = Math.max(s.lopUntil, s.m + 1);
+  if (tier >= 1) parts.push(`${GENERAL_SANCTIONS.extraDuty[tier]} hours extra duty`);
+  if (tier === 2) {
+    parts.push(`${GENERAL_SANCTIONS.confinement[2]} days confinement to cell`);
+    s.skipNext += 1;
+  }
+  L(s, `Sanction, offense ${tier + 1} in six months: ${parts.join(', ')}. A general never touches your good time or your visits.`);
+  check657(s);
+}
+
+/** WAC 657: four general violations from separate incidents within 90 days is a serious. */
+function check657(s: Game) {
+  const since = typeof s.flags.last657 === 'number' ? s.flags.last657 : -1;
+  const recent = s.infractions.filter(
+    (x, i) => i > since && !x.serious && x.result === 'guilty' && s.m - x.m <= 2
+  );
+  if (recent.length < 4) return;
+  s.flags.last657 = s.infractions.length - 1;
+  s.hearings.push({ code: '657', source: 'Four general infractions in ninety days' });
+  L(s, 'That is four general infractions inside ninety days. Four generals make a serious: 657. CAUGHT.');
+}
+
+/**
+ * Administrative segregation (DOC 320.200): out of general population until staff decide where you belong. Reviews
+ * at 2 business days, 14 days, and 30. Thirty days is the most, whatever the placement is called.
+ */
+function placeSeg(s: Game, why: string, discretionary: boolean) {
+  if (s.segUntil > s.m) return;
+  s.segUntil = s.m + 1;
+  s.segPlacements.push({ m: s.m, why, discretionary });
+  L(s, `A lieutenant places you on administrative segregation: ${why}. You are cuffed and walked off the unit. Reviews at two days, fourteen days, and thirty. Thirty days is the most anyone can hold you there.`);
+}
+
+function chargeSerious(s: Game, code: string, source: string, gen?: string) {
+  if (SEG_CODES.includes(code)) placeSeg(s, code === '505' || code === '633' || code === '502' ? 'a fight' : 'a threat to the orderly operation of the facility', false);
+  s.hearings.push({ code, source, gen });
+  L(s, `Serious infraction ${code}: ${violation(code).title}. You are served the report. A hearing within five business days.`);
+}
+
+/** Charge a caught break: one 6 is written as the general, two or more as the serious. */
+function writeUp(s: Game, b: { title: string; gen?: string; ser?: string }, serious: boolean) {
+  const code = (serious ? b.ser ?? b.gen : b.gen ?? b.ser) ?? (serious ? '505' : '103');
+  if (violation(code).cat === 'general') generalInfraction(s, code, b.title);
+  else chargeSerious(s, code, b.title, b.gen);
+}
+
+/** What a serious finding costs. Ranges are DOC 460.050 Attachment 2; a guilty plea takes the low half. */
+function seriousSanction(s: Game, h: Hearing, plea: 'guilty' | 'contest') {
+  const v = violation(h.code);
+  const cat = v.cat as Exclude<typeof v.cat, 'general'>;
+  const tbl = SERIOUS_SANCTIONS[cat];
+  const tier = offenseTier(s, true);
+  const take = (n: number) => (plea === 'guilty' ? Math.round(n / 2) : n);
+  const parts: string[] = [];
+  const rec: Infraction = { m: s.m, code: h.code, source: h.source, serious: true, result: 'guilty', plea, days: 0 };
+
+  if (!s.flags.stopped && s.maxBoxes === 0 && s.gctLost > 0) {
+    s.flags.ppm = true;
+    L(s, 'You have no good time left to lose. The hearing officer refers you for prosecution: Persistent Prison Misbehavior. A single act can bring both discipline and a criminal charge.');
+  }
+  const days = h.code === '665' ? TRAFFICKING_GCT : take(tbl.gct[tier]);
+  if (days > 0 && !s.flags.stopped) {
+    const before = s.maxBoxes;
+    s.gctLost += days;
+    rec.days = days;
+    syncBoxes(s);
+    parts.push(`${days} days of good conduct time${h.code === '665' ? ' (mandatory)' : ''}${s.maxBoxes < before ? `: your good-time boxes drop to ${s.maxBoxes}, for good` : ''}`);
+  } else if (days > 0) parts.push('no good time to take: you stopped counting');
+
+  const priv = take(tbl.privileges[tier]);
+  s.lopUntil = Math.max(s.lopUntil, s.m + monthsFor(priv));
+  parts.push(`${priv} days loss of privileges`);
+  if (cat === 'A' || cat.startsWith('B') || plea === 'contest') {
+    s.confinedUntil = Math.max(s.confinedUntil, s.m + 1);
+    parts.push(`${take(tbl.confinement[tier])} days confinement to cell`);
+  }
+  if (NO_WEIGHTS.includes(h.code) && !s.flags.noWeights) {
+    s.flags.noWeights = true;
+    parts.push('no weightlifting for two years (mandatory)');
+  }
+  if (h.code === '882') {
+    s.phoneUntil = Math.max(s.phoneUntil, s.m + monthsFor(PHONE_LOSS[tier]));
+    parts.push(`${PHONE_LOSS[tier]} days without phone privileges, except legal calls (mandatory)`);
+  }
+  if (h.code === '718') {
+    s.commsUntil = Math.max(s.commsUntil, s.m + 1);
+    parts.push('your messages restricted for 30 days');
+  }
+  s.classPoints += v.points;
+  parts.push(`-${v.points} points off your custody score for ${v.cat === 'A' ? 24 : v.points === 15 ? 12 : 6} months`);
+  s.mo.seriousGuilty = true;
+  L(s, `Sanctions: ${parts.join('; ')}.`);
+
+  if (facility(s.facilityId).efv || s.efv.status !== 'none') {
+    const had = s.efv.status === 'applied' || s.efv.status === 'approved';
+    s.efv.status = 'suspended';
+    s.efv.until = s.m + 6;
+    L(s, had
+      ? 'Any serious ends your extended family visits: six months suspended, and then the application starts over from the beginning.'
+      : 'Any serious keeps you out of the family visit program for six months.');
+    if (had && s.flags.promise_efv) {
+      delete s.flags.promise_efv;
+      L(s, 'You promised you would make the visit.');
+      addSupport(s, -2);
+    }
+  }
+  s.infractions.push(rec);
+  // DOC 300.380 V.A.2.b: 20 or more points deducted in a review period requires evaluation for demotion
+  if (custodyDeducted(s) >= 20 && s.custody !== 'close' && !s.flags.frmtPending) {
+    s.flags.frmtPending = true;
+    L(s, 'Twenty points off your custody score inside one review period. A Facility Risk Management Team will review your custody.');
+  }
   if (has(s, 'affiliated') && !s.flags.validated) {
     s.flags.validated = true;
     s.consBonus += 1;
@@ -1445,50 +1750,172 @@ function major(s: Game) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Custody: DOC 300.380                                                */
+/* ------------------------------------------------------------------ */
+
+/** How long a deduction stays on the score: Category A 24 months, 633/704 12, everything else 6. */
+const deductionMonths = (code: string) => (violation(code).cat === 'A' ? 24 : violation(code).points === 15 ? 12 : 6);
+
+/** The Custody Review Score: intake score, +1 programming point a month, minus deductions still in force. */
+export function custodyScore(s: Game): number {
+  const off = s.infractions
+    .filter((x) => x.serious && x.result === 'guilty' && s.m - x.m < deductionMonths(x.code))
+    .reduce((a, x) => a + violation(x.code).points, 0);
+  return s.crsBase + s.progPoints - off;
+}
+export const scoreBand = (n: number) => (n >= 56 ? 'minimum' : n >= 40 ? 'medium' : 'close');
+
+/** Points taken off the Custody Review Score by serious findings in the current six-month review period. */
+export function custodyDeducted(s: Game): number {
+  return s.infractions
+    .filter((x) => x.serious && x.result === 'guilty' && s.m - x.m < 6)
+    .reduce((a, x) => a + violation(x.code).points, 0);
+}
+
+type Move = { custody: Game['custody']; facility: string; label: string };
+const DEMOTE: Record<string, Move> = {
+  minimum: { custody: 'medium', facility: 'harlan', label: 'Medium' },
+  medium: { custody: 'close', facility: 'granite', label: 'Close' }
+};
+const PROMOTE: Record<string, Move> = {
+  close: { custody: 'medium', facility: 'harlan', label: 'Medium' },
+  medium: { custody: 'minimum', facility: 'cedar', label: 'Minimum' }
+};
+const RANK = { close: 0, medium: 1, minimum: 2 };
+
+function moveCustody(s: Game, to: Move) {
+  const f = facility(to.facility);
+  s.custody = to.custody;
+  s.facilityId = to.facility;
+  s.baseBoxes = f.boxes;
+  syncBoxes(s);
+  return f;
+}
+
+/** The FRMT meets. Custody drops one level at a time, unless the facility overrides the score and keeps you. */
+function custodyReview(s: Game) {
+  // Plan Change Review every six months. Intake custody is not promoted for the first six.
+  if (!s.flags.frmtPending && s.m > 1 && (s.m - 1) % 6 === 0) {
+    const score = custodyScore(s);
+    const up = PROMOTE[s.custody];
+    if (!up || RANK[scoreBand(score)] <= RANK[s.custody]) {
+      L(s, `Plan Change Review: custody score ${score}. You stay at ${cap(s.custody)}.`);
+      return;
+    }
+    if (next(s) < 0.25) {
+      L(s, `Plan Change Review: custody score ${score}, enough to promote. The facility overrides it and keeps you at ${cap(s.custody)}.`);
+      return;
+    }
+    const f = moveCustody(s, up);
+    L(s, `Plan Change Review: custody score ${score}. Promoted one level, to ${up.label}. You transfer to ${f.name}.`);
+    return;
+  }
+  if (!s.flags.frmtPending) return;
+  delete s.flags.frmtPending;
+  const to = DEMOTE[s.custody];
+  if (!to) return;
+  if (next(s) < 0.25) {
+    L(s, `Custody review: the score says demote. The facility overrides it and keeps you at ${cap(s.custody)}. Nobody tells you why.`);
+    return;
+  }
+  const f = moveCustody(s, to);
+  L(s, `Custody review: demoted one level, to ${to.label}. You are on the chain bus to ${f.name}.`);
+}
+
+/**
+ * Plead to the next serious infraction. A guilty plea usually gets a lighter sanction, and gives up the appeal of
+ * the finding. Contesting almost never wins.
+ */
+export function plead(g: Game, how: 'guilty' | 'contest'): Game {
+  if (g.phase !== 'eyes' || !g.hearings.length) return g;
+  const s = clone(g);
+  s.lines = [];
+  const h = s.hearings.shift()!;
+  const v = violation(h.code);
+  L(s, `Disciplinary hearing: ${h.code}, ${v.title}. ${s.segUntil > s.m ? 'You are in segregation, so it comes within three business days. ' : ''}A lieutenant hears it, on the record. ${how === 'guilty' ? 'You plead guilty.' : 'You plead not guilty and ask for your witnesses.'}`);
+  if (how === 'contest') {
+    const r = next(s);
+    if (r < 0.03) {
+      L(s, 'Not guilty. It almost never happens. Nothing goes in your central file.');
+      s.infractions.push({ m: s.m, code: h.code, source: h.source, serious: true, result: 'not_guilty', plea: how });
+    } else if (r < 0.09 && h.gen) {
+      L(s, `Guilty of a lesser violation: the hearing officer reduces it to a general, ${h.gen}.`);
+      const before = s.infractions.length;
+      generalInfraction(s, h.gen, h.source);
+      if (s.infractions[before]) s.infractions[before].result = 'reduced';
+    } else {
+      L(s, "Guilty. The officer's report is the evidence, and the hearing officer believes it.");
+      seriousSanction(s, h, how);
+    }
+  } else {
+    L(s, 'Guilty, on your plea. The hearing officer takes the plea into account. You cannot appeal the finding now.');
+    seriousSanction(s, h, how);
+  }
+  s.report = [...s.report, ...s.lines];
+  return s;
+}
+
+/** Appeal a contested finding to the Superintendent. Sanctions are not stayed; the answer comes next month. */
+export function appeal(g: Game, i: number): Game {
+  const rec = g.infractions[i];
+  if (g.phase !== 'eyes' || !rec || !rec.serious || rec.plea !== 'contest' || rec.result !== 'guilty' || rec.appeal || rec.m !== g.m) return g;
+  const s = clone(g);
+  s.infractions[i].appeal = 'pending';
+  s.report = [...s.report, `You appeal ${rec.code} to the Superintendent. The sanctions are not stayed while you wait.`];
+  return s;
+}
+
+function resolveAppeals(s: Game) {
+  for (const rec of s.infractions) {
+    if (rec.appeal !== 'pending') continue;
+    if (next(s) < 0.05) {
+      rec.appeal = 'granted';
+      rec.result = 'not_guilty';
+      s.gctLost = Math.max(0, s.gctLost - (rec.days ?? 0));
+      syncBoxes(s);
+      L(s, `The Superintendent reverses ${rec.code}. The good time comes back. The days you already served on sanction do not.`);
+    } else {
+      rec.appeal = 'denied';
+      L(s, `Your appeal of ${rec.code} is denied. The Superintendent's decision is final.`);
+    }
+  }
+}
+
 export function rollEyes(g: Game): Game {
   if (g.phase !== 'hub' || g.mo.scenesLeft > 0) return g;
   const s = clone(g);
   s.lines = [];
+  if (has(s, 'gambler') && next(s) < 1 / 3) {
+    const r = d(s, 6);
+    L(s, `A game runs. You sit in: ${r <= 3 ? 'you lose 3 commissary.' : 'you win 3 commissary.'}`);
+    s.commissary = Math.max(0, s.commissary + (r <= 3 ? -3 : 3));
+    s.mo.breaks.push({
+      title: 'A card game', severity: 'major', forced: false, ser: '559',
+      dice: { blueNo: 0, blue: 0, white: 3, gray: 0, rumor: 0, applies: false }
+    });
+  }
   L(s, s.mo.breaks.length ? 'Staff roll behind the screen. They say only "clean" or "caught."' : 'Nothing was done that staff could write up.');
   for (const b of s.mo.breaks) {
     const total = b.dice.blue + b.dice.white + b.dice.gray + b.dice.rumor;
     let sixes = 0;
     for (let i = 0; i < total; i++) if (d(s, 6) === 6) sixes++;
-    let caught = !!b.forced || sixes > 0;
-    let sev: 'minor' | 'major' = b.forced
-      ? b.forced
-      : b.severity === 'rolled' ? (sixes >= 2 ? 'major' : 'minor') : b.severity;
-    if (caught && sev === 'minor' && b.fightMajor && s.mo.fought) sev = 'major';
+    const caught = !!b.forced || sixes > 0;
     s.ledger.push({
       m: s.m, title: b.title, blueNo: b.dice.blueNo, white: b.dice.white, gray: b.dice.gray,
       rumor: b.dice.rumor, applies: b.dice.applies, consp: consp(s), caught, forced: !!b.forced
     });
-    if (caught && sev === 'minor' && s.mo.warn) {
-      s.mo.warn = false;
-      caught = false;
-      L(s, `${b.title}: a warning. Reyes lets it go.`);
+    if (!caught) {
+      L(s, `${b.title}: clean.`);
       apply(s, b.onClean, b.hustle ? ({ hustle: true } as Choice) : undefined);
       continue;
     }
-    if (caught) {
-      const lost = eraseBoxes(s, sev === 'major' ? 2 : 1);
-      s.mo.caught = true;
-      s.stats.caught++;
-      L(s, `${b.title}: CAUGHT (${sev}).${lost ? ` Good time -${lost}.` : s.flags.stopped ? ' (You stopped counting: no good time to lose.)' : ''}`);
-      if (sev === 'minor') {
-        s.visitBanMonth = s.m + 1;
-        L(s, 'A minor suspends visits next month.');
-      } else {
-        s.visitBanAct = actOf(s);
-        addSupport(s, -1);
-        L(s, 'A major suspends visits for the rest of the act, and strains the people on the other side.');
-        major(s);
-      }
-      apply(s, b.onCaught);
-    } else {
-      L(s, `${b.title}: clean.`);
-      apply(s, b.onClean, b.hustle ? ({ hustle: true } as Choice) : undefined);
-    }
+    const serious = b.forced ? b.forced === 'major' : b.severity === 'rolled' ? sixes >= 2 : b.severity === 'major';
+    s.mo.caught = true;
+    s.stats.caught++;
+    L(s, `${b.title}: CAUGHT.`);
+    writeUp(s, b, serious);
+    apply(s, b.onCaught);
   }
   // kites: everyone passes one every month, so passing one proves nothing
   const kiteP = Math.min(0.3, 0.05 + 0.03 * s.rumors.length);
@@ -1497,11 +1924,24 @@ export function rollEyes(g: Game): Game {
     if (s.mo.breaks.length && !s.mo.caught) {
       s.mo.caught = true;
       s.stats.caught++;
-      const lost = eraseBoxes(s, 1);
-      L(s, `The kite named something you did. CAUGHT (minor).${lost ? ' Good time -1.' : ''}`);
-      s.visitBanMonth = s.m + 1;
+      L(s, 'The kite named something you did. CAUGHT.');
+      writeUp(s, s.mo.breaks[0], false);
     } else if (!s.mo.caught) pin(s, s.char!.privateTag);
   }
+  // discretion: some officers can always find something, and they look harder at some men than others
+  const o = s.mo.officer;
+  const petty = (o.mood === 'cruel' ? 0.3 : o.name === 'Dahl' ? 0.25 : o.mood === 'decent' ? 0.02 : 0.08) + 0.05 * Math.max(0, consp(s));
+  if (next(s) < petty) {
+    const code = PETTY[Math.floor(next(s) * PETTY.length)];
+    L(s, `${o.name} writes you up. CAUGHT. It is the officer's call, and the officer made it.`);
+    generalInfraction(s, code, `${o.name}'s write-up`, true);
+  }
+  // discretion: the lieutenant on shift can place anyone the facility sees as a threat, pending investigation
+  const watched = s.proven || !!s.flags.validated || s.rumors.length >= 3;
+  if (watched && s.segUntil <= s.m && next(s) < 0.08 + 0.02 * Math.max(0, consp(s))) {
+    placeSeg(s, s.rumors.length >= 3 ? 'pending investigation. Nobody says of what' : 'pending investigation into security threat group activity', true);
+  }
+  if (s.hearings.length) L(s, `${s.hearings.length === 1 ? 'A serious infraction goes' : `${s.hearings.length} serious infractions go`} to a hearing.`);
   s.report = s.lines.slice();
   s.phase = 'eyes';
   return s;
@@ -1531,43 +1971,109 @@ export function letterSlots(s: Game): number {
   return 1 + s.extraLines + (statMod(s, 'heart') >= 1 ? 1 : 0);
 }
 
-/** Months between Support going from 0 to 1+ and the first possible visit. */
-const VISIT_APPROVAL_MONTHS = 2;
-
-export function visitsApproved(s: Game): boolean {
-  return s.support >= 1 && s.m >= s.visitReadyMonth;
-}
-
 export function visitsBanned(s: Game): boolean {
   return s.visitBanMonth === s.m || (!!s.visitBanAct && s.visitBanAct === actOf(s)) || s.mo.noVisits;
 }
 
-export function toMail(g: Game): Game {
-  if (g.phase !== 'eyes') return g;
+/* ------------------------------------------------------------------ */
+/* Extended family visits: DOC 590.100                                 */
+/* ------------------------------------------------------------------ */
+
+const efvFamily = (s: Game) => visitingTies(s).filter((t) => t.efv);
+
+/** Why you cannot apply for an extended family visit right now, or null if you can. */
+export function efvBlock(s: Game): string | null {
+  const e = s.efv;
+  const f = facility(s.facilityId);
+  if (!f.efv) return `No extended family visits at ${f.name}.`;
+  if (e.status === 'suspended') return `Suspended after a serious violation, through month ${e.until - 1}. Then you apply again.`;
+  if (e.status === 'applied') return 'Application pending. It can take two to six months.';
+  if (e.status === 'approved') return e.next > s.m ? `Approved. Scheduled by availability, around month ${e.next}.` : 'Approved.';
+  if (!efvFamily(s).length) return 'No immediate family who can come is on your visiting list.';
+  const recent = s.visitMonths.filter((m) => s.m - m < 12).length;
+  if (recent < 6) return `You need an established visit history: six visits in the last twelve months. You have ${recent}.`;
+  return null;
+}
+
+export function applyEfv(g: Game): Game {
+  if (g.phase !== 'hub' || efvBlock(g)) return g;
   const s = clone(g);
   s.lines = [];
-  if (s.mo.caught) {
-    s.cleanStreak = 0;
-    L(s, 'You were caught this month: no good-time box.');
-  } else {
-    s.cleanStreak += 1;
-    if (s.flags.stopped) L(s, 'A clean month.');
-    else if (s.boxes >= s.maxBoxes) L(s, 'A clean month, but every box is already full.');
-    else {
-      s.boxes++;
-      L(s, 'A clean month: a good-time box is filled.');
-    }
-    const efvOk = facility(s.facilityId).efv;
-    if (s.cleanStreak >= 3 && visitsApproved(s) && efvOk && !s.efv) {
-      s.efv = true;
-      s.cleanStreak = 0;
-      L(s, 'Three clean months in a row: you have earned an extended family visit. Your next scene is with your family.');
-    }
-    if (visitsApproved(s) && !visitsBanned(s)) {
-      s.visitPending = true;
-      L(s, 'You have a visit.');
-    } else if (visitsApproved(s)) L(s, 'No visit this month: visits are suspended.');
+  const fam = efvFamily(s)[0];
+  s.efv.status = 'applied';
+  s.efv.decide = s.m + 2 + Math.floor(next(s) * 5);
+  L(s, `You ask ${fam.who} to apply. The forms go to the Headquarters EFV Unit: background checks, your case manager, Health Services, a Facility Risk Management Team, then the Superintendent. It can take two to six months.`);
+  return s;
+}
+
+/** At the turn of a month: decisions arrive, visits get scheduled. Returns true when a visit happens this month. */
+function efvMonth(s: Game): boolean {
+  const e = s.efv;
+  if (e.status === 'suspended' && s.m >= e.until) {
+    e.status = 'none';
+    L(s, 'The six-month suspension from extended family visits is over. You can apply again, from the beginning.');
   }
+  if (e.status === 'applied' && s.m >= e.decide) {
+    if (efvFamily(s).length) {
+      e.status = 'approved';
+      e.next = s.m + 1 + Math.floor(next(s) * 2);
+      L(s, 'A letter from the Headquarters EFV Unit: approved. The facility schedules visits by availability.');
+    } else {
+      e.status = 'none';
+      L(s, 'A letter from the Headquarters EFV Unit: denied. No eligible family member is left on the application.');
+    }
+  }
+  if (e.status !== 'approved' || s.m < e.next) return false;
+  if (!efvFamily(s).length || !facility(s.facilityId).efv) {
+    e.status = 'none';
+    L(s, 'No approved family member is left to come. The extended family visit is canceled.');
+    return false;
+  }
+  e.done += 1;
+  e.next = s.m + 1 + Math.floor(next(s) * 3); // no sooner than 30 days, and only as the units come free
+  return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* The end of the month                                                */
+/* ------------------------------------------------------------------ */
+
+export function toMail(g: Game): Game {
+  if (g.phase !== 'eyes' || g.hearings.length) return g;
+  const s = clone(g);
+  s.lines = [];
+  if (!s.mo.seriousGuilty) s.progPoints += 1; // a month of earned time is a programming point
+  if (s.mo.seriousGuilty) L(s, 'A serious finding this month: no good-time box, and no programming point.');
+  else if (s.flags.stopped) L(s, 'A month done.');
+  else if (s.boxes >= s.maxBoxes) L(s, s.maxBoxes ? 'Another month, but every box you can still fill is full.' : 'Another month. You have no good time left to earn.');
+  else {
+    s.boxes++;
+    L(s, 'No serious violation this month: a good-time box is filled.');
+  }
+
+  const vt = visitingTies(s);
+  if (vt.length && !visitsBanned(s)) {
+    const lead = vt.find((t) => !t.minor) ?? vt[0];
+    const kids = vt.filter((t) => t.minor && t.guardian === lead.id);
+    if (next(s) < (lead.weight >= 2 ? 0.9 : 0.7)) {
+      s.visitPending = true;
+      s.visitMonths.push(s.m);
+      const who = `${lead.who}${kids.length ? ` brought ${kids.map((k) => k.who).join(' and ')}` : ' came'}`;
+      if (s.mo.seg) L(s, `Visiting day, from segregation: ${who}. A no-contact visit, one hour. You cannot touch them. In segregation that is all there is, once a week.`);
+      else L(s, `Visiting day. An officer calls your name: ${who}.`);
+    } else {
+      L(s, 'Visiting day. You are dressed early and waiting in your cell. You ask the officer to call up front. "Nobody\'s shown up." Visiting hours end. Nobody calls your name.');
+      // Staff never tell you a visitor was turned away. Sometimes they were, and you hear it from them.
+      if (next(s) < 0.5) {
+        s.deferred.push({ unit: 'month', left: 1, effect: { log: `A message from ${lead.who}: they drove all the way there, and were turned away at the front. Nobody inside told you.` } });
+      }
+    }
+  } else if (vt.length) L(s, 'No visit this month.');
+  else {
+    const waiting = activeTies(s).filter((t) => t.visits && s.m < t.ready);
+    if (waiting.length) L(s, `${cap(waiting[0].who)} is still waiting on visitor approval.`);
+  }
+
   if (s.job) {
     s.commissary += 1;
     L(s, 'Your job pays 1 commissary.');
@@ -1591,16 +2097,6 @@ export function toMail(g: Game): Game {
       L(s, 'The goods you flipped sold: +4 store.');
     } else L(s, 'A search turned up the goods you were holding. They are gone.');
     delete s.flags.hot;
-  }
-  if (has(s, 'gambler') && next(s) < 1 / 3) {
-    const r = d(s, 6);
-    const sixSeen = [d(s, 6), d(s, 6), d(s, 6)].includes(6);
-    L(s, `A game runs. You sit in: ${r <= 3 ? 'you lose 3 commissary.' : 'you win 3 commissary.'}`);
-    s.commissary = Math.max(0, s.commissary + (r <= 3 ? -3 : 3));
-    if (sixSeen) {
-      eraseBoxes(s, 1);
-      L(s, 'An officer saw. Gambling is a minor: good time -1.');
-    }
   }
   if (has(s, 'loose_mouth') && d(s, 6) === 1) {
     L(s, 'You said too much to the wrong man.');
@@ -1633,11 +2129,12 @@ export function submitLetters(g: Game, lines: string[]): Game {
   if (g.phase !== 'mail' || g.visitPending) return g;
   const s = clone(g);
   s.lines = [];
-  const notebook = s.support === 0;
+  const notebook = !primaryTie(s);
+  const restricted = s.commsUntil >= s.m;
   // Mail is read. Staff may delay a message a month, or hold it for good.
   const out = lines.map((t) => t.trim()).filter(Boolean).map((text) => {
     if (notebook) return { text, status: 'sent' as const };
-    if (s.mo.noMessages) return { text, status: 'held' as const };
+    if (s.mo.noMessages || restricted) return { text, status: 'held' as const };
     if (s.mo.delayMessages) return { text, status: 'delayed' as const };
     const r = next(s);
     const pHeld = 0.06 + (SENSITIVE.test(text) ? 0.3 : 0);
@@ -1648,8 +2145,8 @@ export function submitLetters(g: Game, lines: string[]): Game {
   s.letters.push({ m: s.m, notebook, lines: out });
   s.extraLines = 0;
   if (s.ending === 'released') {
-    if (typeof s.flags.promise_date === 'number' && s.m > s.flags.promise_date) s.support = Math.max(0, s.support - 1);
-    if (s.flags.promise_efv) s.support = Math.max(0, s.support - 2);
+    if (s.flags.promise_date && s.m > s.sentence - s.maxBoxes) addSupport(s, -1);
+    if (s.flags.promise_efv && s.efv.done === 0) addSupport(s, -2);
     s.phase = 'over';
     return s;
   }

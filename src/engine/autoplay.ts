@@ -1,5 +1,6 @@
 import { CHARGES, BACKGROUNDS, OUTSIDES } from './content';
 import {
+  applyEfv,
   beginSentence,
   cardChoices,
   chooseVisit,
@@ -9,6 +10,7 @@ import {
   lockReason,
   newGame,
   playScene,
+  plead,
   preview,
   rollEyes,
   submitLetters,
@@ -84,10 +86,11 @@ export function playGame(seed: number, opts: PlayOpts = {}): Game {
         s = continueResult(s);
         break;
       case 'hub':
+        s = applyEfv(s);
         s = s.mo.scenesLeft > 0 ? playScene(s) : rollEyes(s);
         break;
       case 'eyes':
-        s = toMail(s);
+        s = s.hearings.length ? plead(s, s.m % 3 ? 'guilty' : 'contest') : toMail(s);
         break;
       case 'mail':
         s = s.visitPending ? chooseVisit(s, 'money') : submitLetters(s, ['Doing fine.']);

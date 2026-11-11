@@ -4,8 +4,8 @@ import {
 } from '../src/engine/content';
 import { YARD_DECK_SIZE } from '../src/content/yard';
 import {
-  beginSentence, choose, chooseVisit, computeDice, conspFacts, continueResult, draftPick, newGame, preview,
-  pullCard, rollEyes, stopCounting, submitLetters, toMail, releaseMonth, grooveOf, lockReason
+  applyEfv, beginSentence, choose, chooseVisit, computeDice, conspFacts, continueResult, custodyScore, draftPick, efvBlock, newGame, plead, playScene,
+  preview, primaryTie, pullCard, rollEyes, stopCounting, submitLetters, toMail, releaseMonth, grooveOf, lockReason, visitingTies
 } from '../src/engine/engine';
 import { careful } from '../src/engine/autoplay';
 import type { Break, Card, Game } from '../src/engine/types';
@@ -27,7 +27,7 @@ function hub(seed: number, o: { facility?: string; charge?: string; bg?: string;
 }
 
 const forcedMajor: Break = {
-  title: 'x', severity: 'major', forced: 'major',
+  title: 'x', severity: 'major', forced: 'major', ser: '505',
   dice: { blueNo: 0, blue: 0, white: 0, gray: 0, rumor: 0, applies: false }
 };
 
@@ -143,7 +143,7 @@ describe('sentences and the ceiling on added time', () => {
     expect(hub(3, { bg: 'b1' }).sentence).toBe(18);
     expect(hub(3, { bg: 'b2' }).sentence).toBe(12);
   });
-  it('never adds more than 3 months during play, however many majors you take', () => {
+  it('takes good time for serious violations, but never adds months to the sentence', () => {
     let s = hub(5, { facility: 'granite', bg: 'b9' });
     const base = s.sentence;
     for (let i = 0; i < 6; i++) {
@@ -151,9 +151,12 @@ describe('sentences and the ceiling on added time', () => {
       s.mo.breaks = [forcedMajor];
       s.phase = 'hub';
       s = rollEyes(s);
+      while (s.hearings.length) s = plead(s, 'contest');
       s.phase = 'hub';
     }
-    expect(s.sentence - base).toBe(3);
+    expect(s.sentence).toBe(base);
+    expect(s.gctLost).toBeGreaterThan(0);
+    expect(s.maxBoxes).toBeLessThan(3);
   });
 });
 
@@ -184,6 +187,7 @@ describe('Support, visits and mail', () => {
     s.visitBanMonth = 0;
     s.mo.noVisits = false;
     s = rollEyes(s);
+    while (s.hearings.length) s = plead(s, 'guilty');
     return toMail(s);
   };
   it('starts from the Outside card, and never exceeds 3', () => {
@@ -191,8 +195,9 @@ describe('Support, visits and mail', () => {
     expect(hub(9, { out: 'nobody_a' }).support).toBeLessThanOrEqual(1);
     for (let seed = 1; seed < 40; seed++) expect(hub(seed, { out: 'sister' }).support).toBeLessThanOrEqual(3);
   });
-  it('gives a clean month with Support a visit you must settle before the letter', () => {
+  it('gives a visit you must settle before the letter, when someone comes', () => {
     let s = toMailPhase(11, 'mother');
+    for (let seed = 12; !s.visitPending && seed < 60; seed++) s = toMailPhase(seed, 'mother');
     expect(s.visitPending).toBe(true);
     expect(submitLetters(s, ['hi']).phase).toBe('mail');
     const before = s.commissary;
@@ -202,33 +207,49 @@ describe('Support, visits and mail', () => {
   });
   it('gives no visit at Support 0 and writes to a notebook instead', () => {
     let s = hub(13, { out: 'nobody_a' });
-    s.support = 0;
     s.mo.scenesLeft = 0;
     s.mo.breaks = [];
-    s = toMail(rollEyes(s));
+    s = rollEyes(s);
+    while (s.hearings.length) s = plead(s, 'guilty');
+    s = toMail(s);
     expect(s.visitPending).toBe(false);
     s = submitLetters(s, ['no one will read this']);
     expect(s.letters[0].notebook).toBe(true);
     expect(s.letters[0].lines[0].status).toBe('sent');
   });
-  it('gives contact restored from Support 0 no visit and no EFV until the questionnaire clears', () => {
-    const mailAt = (ready: number) => {
-      let s = hub(17, { out: 'nobody_a' });
-      s.support = 1;
-      s.visitReadyMonth = ready;
-      s.cleanStreak = 2;
-      s.mo.scenesLeft = 0;
-      s.mo.breaks = [];
-      s.mo.caught = false;
-      s.visitBanMonth = 0;
-      s.mo.noVisits = false;
-      return toMail(rollEyes(s));
-    };
-    const waiting = mailAt(99);
-    expect(waiting.visitPending).toBe(false);
-    expect(waiting.efv).toBe(false);
-    const cleared = mailAt(0);
-    expect(cleared.visitPending).toBe(true);
+  it('never gives Nobody Support, whatever their Heart', () => {
+    for (let seed = 1; seed < 60; seed++) expect(hub(seed, { out: 'nobody_a' }).support).toBe(0);
+  });
+  it('makes a new visitor wait on the visitor application', () => {
+    const s = hub(17, { out: 'nobody_a' });
+    s.cur = { card: structuredClone(OUTSIDES.find((o) => o.id === 'nobody_a')!.lineHome), source: 'move' };
+    s.phase = 'card';
+    const t = choose(s, 'write');
+    expect(t.support).toBe(1);
+    expect(visitingTies(t)).toHaveLength(0);
+    expect(visitingTies({ ...t, m: t.m + 2 })).toHaveLength(1);
+  });
+  it('never brings a visit from someone who cannot come', () => {
+    expect(visitingTies(hub(19, { out: 'grandmother' }))).toHaveLength(0);
+    expect(visitingTies(hub(19, { out: 'brother_inside' }))).toHaveLength(0);
+  });
+  it('takes the child with the adult who brings them when that adult leaves', () => {
+    let s = hub(23, { out: 'partner_son' });
+    expect(visitingTies(s).map((t) => t.id).sort()).toEqual(['partner', 'son']);
+    s.cur = { card: structuredClone(YARD.get('divorce_papers')!), source: 'yard' };
+    s.phase = 'card';
+    s = choose(s, 'sign');
+    expect(s.support).toBe(0);
+    expect(visitingTies(s)).toHaveLength(0);
+    expect(primaryTie(s)).toBeUndefined();
+  });
+  it('never draws Divorce Papers for someone with no partner', () => {
+    const s = hub(29, { out: 'mother' });
+    s.yardDeck = ['divorce_papers', 'spread'];
+    s.standing = 2;
+    s.lopUntil = 0;
+    s.mo.scenesLeft = 1;
+    expect(playScene(s).cur!.card.id).toBe('spread');
   });
   it('lets staff hold messages that mention staff far more often than ordinary ones', () => {
     let hot = 0;
@@ -246,14 +267,169 @@ describe('Support, visits and mail', () => {
     }
     expect(hot).toBeGreaterThan(cold * 2);
   });
-  it('a major suspends visits for the rest of the act and lowers Support', () => {
-    let s = hub(15, { out: 'sister' });
-    const sup = s.support;
-    s.mo.scenesLeft = 0;
-    s.mo.breaks = [forcedMajor];
-    s = rollEyes(s);
-    expect(s.support).toBe(sup - 1);
-    expect(s.visitBanAct).not.toBe('');
+});
+
+const general: Break = { ...forcedMajor, forced: 'minor', severity: 'minor', gen: '103', ser: undefined };
+const eyes = (s: Game, breaks: Break[]) => {
+  s.mo.scenesLeft = 0;
+  s.mo.breaks = breaks;
+  s.mo.officer = { name: 'Reyes', mood: 'decent', blurb: '' };
+  s.mo.warn = false;
+  s.phase = 'hub';
+  s.rumors = [];
+  s.char!.conspBase = -2;
+  return rollEyes(s);
+};
+
+describe('discipline (WAC 137-28, DOC 460.000, DOC 460.050)', () => {
+  it('a general never touches good time or visits, and puts you on the sheet', () => {
+    let s = hub(31, { out: 'mother' });
+    s.boxes = 2;
+    s = eyes(s, [general]);
+    expect(s.hearings).toHaveLength(0);
+    expect(s.boxes).toBe(2);
+    expect(s.lopUntil).toBe(s.m + 1);
+    s = toMail(s);
+    expect(s.boxes).toBe(3);
+    expect(s.visitBanMonth).not.toBe(s.m + 1);
+  });
+  it('four generals inside ninety days become a 657', () => {
+    const s = eyes(hub(33), [general, general, general, general]);
+    expect(s.hearings.map((h) => h.code)).toContain('657');
+  });
+  it('a guilty plea takes less good time than a lost contest, and any serious suspends EFV for six months', () => {
+    const fight: Break = { ...forcedMajor, ser: '505' };
+    const a = plead(eyes(hub(35), [fight]), 'guilty');
+    let b = plead(eyes(hub(35), [fight]), 'contest');
+    for (let seed = 36; b.infractions.slice(-1)[0]?.result !== 'guilty' && seed < 80; seed++) b = plead(eyes(hub(seed), [fight]), 'contest');
+    expect(a.infractions.slice(-1)[0]!.days).toBe(15);
+    expect(b.infractions.slice(-1)[0]!.days).toBe(30);
+    expect(a.efv.status).toBe('suspended');
+    expect(a.efv.until).toBe(a.m + 6);
+    expect(a.flags.noWeights).toBe(true);
+    expect(toMail(a).boxes).toBe(a.boxes);
+  });
+  it('waits for the hearing before visiting', () => {
+    const s = eyes(hub(37), [{ ...forcedMajor, ser: '505' }]);
+    expect(toMail(s)).toBe(s);
+  });
+  it('asks before you go out under sanction, and going out is a 658', () => {
+    let s = hub(39);
+    s.lopUntil = s.m;
+    s.yardDeck = ['cut_in_line'];
+    s.mo.scenesLeft = 1;
+    s.mo.lockdown = false;
+    s.standing = 2;
+    s = playScene(s);
+    expect(s.cur!.card.id).toBe('on_sheet');
+    const stay = choose(s, 'stay');
+    expect(stay.standing).toBe(1);
+    const go = choose(s, 'go');
+    expect(go.cur!.card.id).toBe('cut_in_line');
+    expect(go.mo.breaks.slice(-1)[0]!.ser).toBe('658');
+  });
+  it('demotes custody one level at a time after 20 points in a review period, unless the facility overrides', () => {
+    const fight: Break = { ...forcedMajor, ser: '505' };
+    let demoted = 0;
+    let kept = 0;
+    for (let seed = 50; seed < 90; seed++) {
+      let s = hub(seed, { facility: 'cedar', out: 'mother' });
+      s = plead(plead(eyes(s, [fight, fight]), 'guilty'), 'guilty');
+      expect(s.flags.frmtPending).toBe(true);
+      s = submitLetters(chooseVisit(toMail(s), 'money'), ['x']);
+      if (s.custody === 'medium') {
+        demoted++;
+        expect(s.facilityId).toBe('harlan');
+      } else {
+        kept++;
+        expect(s.custody).toBe('minimum');
+      }
+    }
+    expect(demoted).toBeGreaterThan(kept);
+    expect(kept).toBeGreaterThan(0);
+  });
+  it('promotes one level at the six-month review once the score reaches the next band', () => {
+    let promoted = 0;
+    let kept = 0;
+    for (let seed = 60; seed < 100; seed++) {
+      let s = hub(seed, { out: 'mother' });
+      expect(custodyScore(s)).toBe(50);
+      s.m = 6;
+      s.progPoints = 5;
+      s = eyes(s, []);
+      while (s.hearings.length) s = plead(s, 'guilty');
+      s = toMail(s);
+      if (s.infractions.some((x) => x.serious)) continue;
+      s = submitLetters(chooseVisit(s, 'money'), ['x']);
+      if (s.ending) continue;
+      expect(s.m).toBe(7);
+      if (s.custody === 'minimum') {
+        promoted++;
+        expect(s.facilityId).toBe('cedar');
+      } else kept++;
+    }
+    expect(promoted).toBeGreaterThan(kept);
+  });
+  it('a fight always brings segregation: no scenes next month, and then release', () => {
+    let s = plead(eyes(hub(71, { out: 'mother' }), [{ ...forcedMajor, ser: '505' }]), 'guilty');
+    expect(s.segUntil).toBe(s.m + 1);
+    expect(s.segPlacements[0].discretionary).toBe(false);
+    s = submitLetters(chooseVisit(toMail(s), 'money'), ['x']);
+    for (let i = 0; i < 40 && s.phase !== 'hub'; i++) s = s.phase === 'card' ? choose(s, careful(s)) : continueResult(s);
+    expect(s.mo.seg).toBe(true);
+    expect(s.mo.scenesLeft).toBe(0);
+    let v = toMail(rollEyes(s));
+    while (v.phase === 'eyes') v = toMail(plead(v, 'guilty'));
+    if (v.visitPending) expect(v.lines.join(' ')).toMatch(/no-contact/);
+  });
+  it('leaving seg from the workers tier costs the job and the cell', () => {
+    let s = hub(75, { out: 'mother' });
+    s.job = true;
+    const cellie = s.cellieId;
+    s.segUntil = s.m;
+    s = eyes(s, []);
+    while (s.hearings.length) s = plead(s, 'guilty');
+    s = submitLetters(chooseVisit(toMail(s), 'money'), ['x']);
+    expect(s.job).toBe(false);
+    expect(s.cellieId).not.toBe(cellie);
+  });
+  it('a dirty UA or a phone is not alone grounds for segregation', () => {
+    for (const ser of ['675', '882']) {
+      const s = plead(eyes(hub(73), [{ ...forcedMajor, ser }]), 'guilty');
+      expect(s.segPlacements.filter((x) => !x.discretionary)).toHaveLength(0);
+    }
+  });
+  it('one serious alone does not trigger a custody review', () => {
+    const s = plead(eyes(hub(51), [{ ...forcedMajor, ser: '505' }]), 'guilty');
+    expect(s.flags.frmtPending).toBeFalsy();
+  });
+  it('closes phone calls while phone privileges are restricted', () => {
+    const s = hub(41, { out: 'partner_moving' });
+    s.phoneUntil = s.m + 2;
+    s.cur = { card: structuredClone(OUTSIDES.find((o) => o.id === 'partner_moving')!.lineHome), source: 'move' };
+    const keep = s.cur.card.choices!.find((c) => c.id === 'keep')!;
+    expect(lockReason(s, keep)).toMatch(/Phone/);
+  });
+});
+
+describe('extended family visits (DOC 590.100)', () => {
+  it('needs a visit history, then an application, then a decision', () => {
+    let s = hub(43, { out: 'mother' });
+    expect(efvBlock(s)).toMatch(/six visits/);
+    s.visitMonths = [1, 1, 1, 1, 1, 1];
+    expect(efvBlock(s)).toBeNull();
+    s = applyEfv(s);
+    expect(s.efv.status).toBe('applied');
+    expect(s.efv.decide - s.m).toBeGreaterThanOrEqual(2);
+    expect(s.efv.decide - s.m).toBeLessThanOrEqual(6);
+  });
+  it('is never open at Granite Close, or to someone with no family who can come', () => {
+    const g = hub(45, { facility: 'granite', out: 'mother' });
+    g.visitMonths = [1, 1, 1, 1, 1, 1];
+    expect(efvBlock(g)).toMatch(/No extended family visits/);
+    const f = hub(45, { out: 'best_friend' });
+    f.visitMonths = [1, 1, 1, 1, 1, 1];
+    expect(efvBlock(f)).toMatch(/immediate family/);
   });
 });
 
@@ -299,7 +475,7 @@ describe('Stop Counting', () => {
     expect(releaseMonth(s)).toBe(s.sentence);
     s.mo.scenesLeft = 0;
     s.mo.breaks = [forcedMajor];
-    s = rollEyes(s);
+    s = plead(rollEyes(s), 'guilty');
     expect(s.boxes).toBe(0);
   });
 });

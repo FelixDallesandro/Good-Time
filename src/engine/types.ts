@@ -13,6 +13,80 @@ export interface RollSpec {
   discretionary?: boolean; // adds Conspicuity in blue dice
   search?: boolean; // random search: also adds Conspicuity
   severity?: 'rolled' | 'minor' | 'major';
+  /** WAC code charged if it is written as a general violation (one 6, or a minor). */
+  gen?: string;
+  /** WAC code charged if it is written as a serious violation (two 6s, or a major). */
+  ser?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Ties: the actual people outside                                     */
+/* ------------------------------------------------------------------ */
+
+export type TieRole = 'partner' | 'ex' | 'child' | 'parent' | 'grandparent' | 'sibling' | 'friend' | 'volunteer' | 'stranger';
+
+export interface TieDef {
+  id: string;
+  who: string; // "your mother"
+  to: string; // how a letter is addressed: "Mom"
+  role: TieRole;
+  weight: number; // how much of your Support this person is
+  visits: boolean; // can come to the visiting room at all
+  efv: boolean; // immediate family for an extended family visit
+  minor?: boolean;
+  guardian?: string; // a minor comes only with this tie
+}
+
+export interface Tie extends TieDef {
+  gone: boolean;
+  ready: number; // first month a visit is possible (visitor approval)
+}
+
+export interface TieOp {
+  id: string;
+  delta?: number; // weight change; at 0 the person is gone
+  gone?: boolean;
+  why?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Discipline: WAC 137-28 / DOC 460.000 / DOC 460.050                  */
+/* ------------------------------------------------------------------ */
+
+export type ViolationCat = 'general' | 'A' | 'B1' | 'B2' | 'B3' | 'C1' | 'C2' | 'C3' | 'D';
+
+export interface Violation {
+  code: string;
+  title: string;
+  cat: ViolationCat;
+  points: number; // classification points (DOC 460.050 Attachment 1)
+}
+
+/** A serious infraction report waiting for its hearing. */
+export interface Hearing {
+  code: string;
+  source: string; // what you did, in the game's words
+  gen?: string; // the lesser general violation a hearing officer could reduce it to
+}
+
+export interface Infraction {
+  m: number;
+  code: string;
+  source: string;
+  serious: boolean;
+  result: 'guilty' | 'reduced' | 'not_guilty' | 'onsite';
+  plea?: 'guilty' | 'contest';
+  days?: number; // good conduct time taken
+  appeal?: 'pending' | 'denied' | 'granted';
+  discretionary?: boolean; // a petty write-up nobody else got
+}
+
+export interface Efv {
+  status: 'none' | 'applied' | 'approved' | 'suspended';
+  decide: number; // month the application decision arrives
+  next: number; // month of the next scheduled visit
+  until: number; // end of a suspension
+  done: number; // visits had
 }
 
 export interface Effect {
@@ -40,6 +114,8 @@ export interface Effect {
   statDelta?: Partial<Record<Stat, number>>;
   support?: number;
   supportSet?: number;
+  ties?: TieOp[];
+  newTie?: TieDef & { wait?: number; ifNone?: boolean };
   mission?: number;
   skipScene?: number;
   sentence?: number; // months added (capped) or removed
@@ -58,6 +134,7 @@ export interface Effect {
   putInWork?: boolean;
   job?: boolean;
   lockdown?: boolean;
+  segSafety?: number; // chance staff move you off mainline for your own safety (not discipline)
   log?: string;
 }
 
@@ -94,6 +171,7 @@ export interface Choice {
   requires?: { stat: Stat; min: number };
   forbidden?: { stat: Stat; max: number };
   needs?: { commissary?: number; support?: number };
+  phone?: boolean; // a phone call: closed while phone privileges are restricted
   tag?: 'letGo' | 'lookAway' | 'takeToCar' | 'violent' | 'fold' | 'walkAway';
   hustle?: boolean;
   roll?: RollSpec;
@@ -126,6 +204,7 @@ export interface Card {
   echo?: boolean;
   rule?: string; // Count-card rule, handled in the engine
   pullId?: string;
+  needsTie?: TieRole[]; // only drawn if one of these people is still in your life
 }
 
 export interface Officer {
@@ -178,6 +257,7 @@ export interface Outside {
   support: number;
   secret: string;
   privateTag?: RumorTag;
+  ties: TieDef[];
   lineHome: Card;
 }
 export interface Cellie {
@@ -189,6 +269,7 @@ export interface Cellie {
   has: boolean; // something going
   contraband: boolean;
   drugs: boolean;
+  code?: string; // what the cell tag is written as
   setup?: Effect;
   cut?: Effect;
 }
@@ -199,6 +280,7 @@ export interface Facility {
   front: string;
   boxes: number;
   startStanding: number;
+  crs: number; // Custody Review Score at intake (DOC 300.380); a game number, set near the next band
   difficulty: string;
   rules: string;
   watchedHarder: string[];
@@ -229,7 +311,8 @@ export interface Break {
   dice: { blueNo: number; blue: number; white: number; gray: number; rumor: number; applies: boolean };
   severity: 'rolled' | 'minor' | 'major';
   forced: 'major' | 'minor' | false;
-  fightMajor?: boolean; // a minor that becomes a major if you also fought this month
+  gen?: string;
+  ser?: string;
   hustle?: boolean;
   onClean?: Effect;
   onCaught?: Effect;
@@ -261,8 +344,12 @@ export interface Month {
   blueMonth: number;
   discBlue: number;
   testWhite: number;
-  warn: boolean; // Reyes on Shift: the first minor becomes a warning
+  warn: boolean; // Reyes on Shift: the first general is handled on site
   noVisits: boolean;
+  confined: boolean; // cell confinement sanction: one scene, in the cell
+  seriousGuilty: boolean; // no earned time this month
+  efvNow: boolean; // the first scene this month is an extended family visit
+  seg: boolean; // administrative segregation: no scenes this month
   noMessages: boolean;
   delayMessages: boolean;
   scenesLeft: number;
@@ -294,7 +381,7 @@ export interface Deferred {
 }
 
 export interface Game {
-  v: 2;
+  v: 3;
   rng: number;
   phase: Phase;
   custody: Custody;
@@ -307,9 +394,26 @@ export interface Game {
   cellieId: string;
   draft: { charges: string[]; backgrounds: string[]; outsides: string[] } | null;
   standing: number;
+  /** Derived from ties: never set it directly. */
   support: number;
+  ties: Tie[];
   boxes: number;
   maxBoxes: number;
+  baseBoxes: number; // the facility's good time before any is taken
+  gctLost: number; // days of good conduct time taken by sanctions
+  classPoints: number; // total custody points ever deducted
+  crsBase: number; // intake Custody Review Score
+  progPoints: number; // +1 for each month with earned time
+  infractions: Infraction[];
+  hearings: Hearing[];
+  lopUntil: number; // loss of privileges (yard, gym, dayroom) through this month
+  segUntil: number; // administrative segregation through this month (30 days at most)
+  segPlacements: { m: number; why: string; discretionary: boolean }[];
+  confinedUntil: number;
+  phoneUntil: number;
+  commsUntil: number;
+  visitMonths: number[];
+  efv: Efv;
   commissary: number;
   rumors: { tag: RumorTag }[];
   strings: { type: 'debt' | 'leverage'; to: string }[];
@@ -326,13 +430,9 @@ export interface Game {
   blueNext: number;
   extraLines: number;
   skipNext: number;
-  cleanStreak: number;
-  efv: boolean;
   visitPending: boolean;
   visitBanMonth: number;
   visitBanAct: string;
-  /** First month a visit can happen. Contact restored from Support 0 is letters and money only until the paperwork clears. */
-  visitReadyMonth: number;
   marks: number;
   missionsDrawn: number;
   monthly: { label: string; commissary?: number; standing?: number; untilAct?: boolean }[];
