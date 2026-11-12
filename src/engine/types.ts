@@ -2,8 +2,10 @@ export type Stat = 'nerve' | 'hustle' | 'cool' | 'heart';
 export type Custody = 'minimum' | 'medium' | 'close';
 export type YardTag = 'test' | 'politics' | 'life' | 'special';
 export type RumorTag = 'charge' | 'cooperation' | 'debt' | 'family' | 'weak';
-export type Phase = 'draft' | 'sheet' | 'card' | 'result' | 'hub' | 'eyes' | 'mail' | 'over';
+export type Phase = 'draft' | 'sheet' | 'card' | 'result' | 'hub' | 'eyes' | 'mail' | 'release' | 'over';
 export type Ending = 'released' | 'died' | 'medical' | 'pc';
+/** Something said in a message from outside that tells staff more than it should. */
+export type SlipId = 'ink' | 'phone' | 'efv' | 'money';
 
 /** What the institution rolls. Any 6 means caught. */
 export interface RollSpec {
@@ -40,6 +42,8 @@ export interface TieDef {
 export interface Tie extends TieDef {
   gone: boolean;
   ready: number; // first month a visit is possible (visitor approval)
+  /** Blank messages sent them since the last time it cost you. */
+  strain?: number;
 }
 
 export interface TieOp {
@@ -134,6 +138,8 @@ export interface Effect {
   putInWork?: boolean;
   job?: boolean;
   lockdown?: boolean;
+  treatment?: 'comply' | 'refuse';
+  paperwork?: 'show' | 'deny' | 'pc';
   segSafety?: number; // chance staff move you off mainline for your own safety (not discipline)
   log?: string;
 }
@@ -237,7 +243,7 @@ export interface Charge {
 }
 export interface CaseLine {
   text: string;
-  bad: boolean; // a "✖": what the system did against you, +2 months
+  bad: boolean; // a "✖": what the system did against you
 }
 export interface Background {
   id: string;
@@ -246,8 +252,13 @@ export interface Background {
   front: string; // as written on the public card
   tattoo: boolean;
   rural: boolean; // rural white backgrounds are where Cedar/Harlan/Granite staff come from
+  /** A prior arrest record: the Pull is harder to walk past, and staff read the file. */
+  priors?: boolean;
+  /** Been to prison before: arrives with the DOC number from last time. */
+  priorDoc?: boolean;
   case: CaseLine[];
-  sentence: number;
+  /** Offender score from prior adult felonies (RCW 9.94A.525, one point each: simplified). */
+  score: number;
 }
 export interface Outside {
   id: string;
@@ -304,6 +315,8 @@ export interface Character {
   privateTag: RumorTag;
   knownOfficer?: string;
   claim: string;
+  /** Six digits, issued at intake. Stamped on everything you own, the back of every photo included. */
+  docNumber: string;
 }
 
 export interface Break {
@@ -335,7 +348,58 @@ export type LetterStatus = 'sent' | 'delayed' | 'held';
 export interface Letter {
   m: number;
   notebook: boolean; // Support 0: written to no one
-  lines: { text: string; status: LetterStatus }[];
+  lines: { text: string; status: LetterStatus; to?: string; subject?: string; flagged?: string[] }[];
+}
+
+/** A message you write: who to, a subject line, and (optionally) your own words. */
+export interface OutMsg {
+  to: string; // tie id
+  topic: string;
+  text: string;
+}
+/** A message on its way out. The reply is written when it arrives, from the state of things then. */
+export interface Outgoing {
+  to: string;
+  who: string;
+  topic: string;
+  subject: string;
+  m: number;
+  arrive: number;
+  late: boolean;
+  /** Sent with a subject line and nothing else. */
+  blank?: boolean;
+}
+/**
+ * A message that didn't go out. A rejection comes with a notice (DOC 05-525) and can be appealed; a message blocked by a
+ * disciplinary restriction cannot.
+ */
+export interface Rejection {
+  id: number;
+  /** Outgoing: yours, reviewed automatically, never returned. Incoming: theirs, which you may appeal. */
+  dir: 'out' | 'in';
+  kind: 'rejected' | 'restricted';
+  m: number; // month written
+  noticed: number; // month the notice reaches you
+  to: string; // tie id (the other person)
+  who: string;
+  topic: string;
+  subject: string;
+  text: string;
+  reason: string;
+  /** DOC 450.100 Attachment 2: the Superintendent reviews first, then Headquarters, whose decision is final. */
+  stage: 'none' | 'superintendent' | 'hq';
+  status?: 'pending' | 'upheld' | 'overturned';
+  decide?: number;
+  decidedAt?: number;
+  slip?: SlipId;
+}
+
+export interface Incoming {
+  m: number;
+  from: string;
+  subject: string;
+  text: string;
+  slip?: SlipId;
 }
 
 export interface Month {
@@ -349,6 +413,7 @@ export interface Month {
   confined: boolean; // cell confinement sanction: one scene, in the cell
   seriousGuilty: boolean; // no earned time this month
   efvNow: boolean; // the first scene this month is an extended family visit
+  blank: boolean; // a month of nothing but count
   seg: boolean; // administrative segregation: no scenes this month
   noMessages: boolean;
   delayMessages: boolean;
@@ -380,13 +445,38 @@ export interface Deferred {
   effect: Effect;
 }
 
+export interface Court {
+  path: 'deal' | 'trial';
+  offense: string;
+  rcw: string;
+  level: number;
+  grid: 'felony' | 'drug';
+  counts: number;
+  score: number;
+  range: { low: number; high: number; plus: boolean; days?: number };
+  base: number;
+  enh?: { label: string; months: number; flat: boolean };
+  enhMonths: number;
+  months: number;
+  earnedMax: number;
+  strike: boolean;
+  talked: boolean;
+  offer: 'first' | 'better' | 'same' | 'worse';
+}
+
 export interface Game {
   v: 3;
   rng: number;
   phase: Phase;
   custody: Custody;
   facilityId: string;
-  sentence: number;
+  sentence: number; // in turns
+  /** The court: what was charged, what you took, and the real months behind the turns. */
+  court: Court | null;
+  /** Real months each turn stands for (12 to 16 turns served at full earned release). */
+  perTurn: number;
+  /** Substance use disorder treatment: every assessment finds a need. Failing it holds you to your max date. */
+  treatment: { sessions: number; need: number; misses: number; failed: boolean; done: boolean };
   added: number; // months added during play (ceiling 3)
   m: number;
   lastAct: string;
@@ -431,6 +521,10 @@ export interface Game {
   extraLines: number;
   skipNext: number;
   visitPending: boolean;
+  /** Marks a strip search after the visit would find: an uncaught fight or fresh ink. */
+  visitRisk: 'fight' | 'ink' | null;
+  /** Write-ups that land next month (found after a visit, say). */
+  pendingBreaks: Break[];
   visitBanMonth: number;
   visitBanAct: string;
   marks: number;
@@ -445,6 +539,13 @@ export interface Game {
   result: { title: string; lines: string[] } | null;
   mo: Month;
   letters: Letter[];
+  outbox: Outgoing[];
+  inbox: Incoming[];
+  rejections: Rejection[];
+  /** Institutionalization: what the place has made routine. Rises every month; contact with outside slows it. */
+  routine: number;
+  /** The release act: the steps between the last message and the gate. */
+  release: { step: number; picks: Record<string, string> } | null;
   ledger: LedgerEntry[];
   report: string[];
   lines: string[];

@@ -4,10 +4,11 @@ import {
 } from '../src/engine/content';
 import { YARD_DECK_SIZE } from '../src/content/yard';
 import {
-  applyEfv, beginSentence, choose, chooseVisit, computeDice, conspFacts, continueResult, custodyScore, draftPick, efvBlock, newGame, plead, playScene,
-  preview, primaryTie, pullCard, rollEyes, stopCounting, submitLetters, toMail, releaseMonth, grooveOf, lockReason, visitingTies
+  appealRejection, applyEfv, beginSentence, choose, chooseVisit, computeDice, conspFacts, continueResult, custodyScore, draftPick, efvBlock, newGame, plead, playScene,
+  preview, primaryTie, pullCard, rollEyes, sentencingRows, stopCounting, submitLetters, toMail, releaseMonth, grooveOf, lockReason, visibleMarks, visitingTies
 } from '../src/engine/engine';
 import { careful } from '../src/engine/autoplay';
+import { VOICES } from '../src/engine/replies';
 import type { Break, Card, Game } from '../src/engine/types';
 
 /** A character at the hub of month 1, with the given background/charge/outside. */
@@ -58,19 +59,14 @@ describe('the card decks PDF', () => {
     expect(COUNT.size).toBe(24);
     expect(YARD_DECK_SIZE).toBe(40);
   });
-  it('gives every case its sentence: 12 months plus 2 per cross, up to 18', () => {
-    for (const b of BACKGROUNDS) {
-      expect(b.case).toHaveLength(3);
-      expect(b.sentence).toBe(12 + 2 * b.case.filter((c) => c.bad).length);
-      expect(b.sentence).toBeLessThanOrEqual(18);
-    }
+  it('gives every case three lines', () => {
+    for (const b of BACKGROUNDS) expect(b.case).toHaveLength(3);
   });
-  it("matches the designer's note on average sentences", () => {
-    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-    expect(avg(BACKGROUNDS.filter((b) => b.ethnicity === 'White').map((b) => b.sentence))).toBe(15);
-    const others = avg(BACKGROUNDS.filter((b) => b.ethnicity !== 'White').map((b) => b.sentence));
-    expect(others).toBeGreaterThan(16);
-    expect(others).toBeLessThan(16.5);
+  it('keeps the disparity: on every charge, the same deal comes out longer for everyone but the white cards', () => {
+    for (const c of CHARGES) {
+      const r = sentencingRows(c.id);
+      expect(r.others, c.id).toBeGreaterThan(r.white);
+    }
   });
   it('only ever shuffles in cards that exist', () => {
     for (const id of echoesOf(everyCard())) expect(YARD.has(id), id).toBe(true);
@@ -139,9 +135,8 @@ describe('the Pull', () => {
 });
 
 describe('sentences and the ceiling on added time', () => {
-  it('starts from the case, not from a flat 12', () => {
-    expect(hub(3, { bg: 'b1' }).sentence).toBe(18);
-    expect(hub(3, { bg: 'b2' }).sentence).toBe(12);
+  it('starts from the grid: priors and the case push the same deal longer', () => {
+    expect(hub(3, { bg: 'b1' }).court!.months).toBeGreaterThan(hub(3, { bg: 'b2' }).court!.months);
   });
   it('takes good time for serious violations, but never adds months to the sentence', () => {
     let s = hub(5, { facility: 'granite', bg: 'b9' });
@@ -251,21 +246,122 @@ describe('Support, visits and mail', () => {
     s.mo.scenesLeft = 1;
     expect(playScene(s).cur!.card.id).toBe('spread');
   });
-  it('lets staff hold messages that mention staff far more often than ordinary ones', () => {
+  const mailAt = (seed: number, out = 'mother') => {
+    let s = toMailPhase(seed, out);
+    s = chooseVisit(s, 'money');
+    s.mo.noMessages = false;
+    s.mo.delayMessages = false;
+    s.commsUntil = 0;
+    return s;
+  };
+  /** Send, then play straight through to next month's messages. */
+  const nextMail = (s: Game) => {
+    s.yardDeck = ['spread'];
+    for (let i = 0; i < 60 && s.phase !== 'mail'; i++) {
+      if (s.phase === 'card') s = choose(s, careful(s));
+      else if (s.phase === 'result') s = continueResult(s);
+      else if (s.phase === 'hub') s = s.mo.scenesLeft > 0 ? playScene(s) : rollEyes(s);
+      else if (s.phase === 'eyes') s = s.hearings.length ? plead(s, 'guilty') : toMail(s);
+    }
+    return s;
+  };
+  it('never holds a message for criticizing staff (DOC 450.100 III.E)', () => {
     let hot = 0;
     let cold = 0;
-    for (let seed = 1; seed <= 300; seed++) {
-      const mk = (text: string) => {
-        let s = toMailPhase(seed, 'mother');
-        s = chooseVisit(s, 'money');
-        s.mo.noMessages = false;
-        s.mo.delayMessages = false;
-        return submitLetters(s, [text]).letters[0].lines[0].status;
-      };
-      if (mk('The officers here are fine and the yard is quiet.') === 'held') hot++;
-      if (mk('The weather is nice.') === 'held') cold++;
+    for (let seed = 1; seed <= 200; seed++) {
+      if (submitLetters(mailAt(seed), ['The officers here are unfair and the sergeant lies.']).letters[0].lines[0].status === 'held') hot++;
+      if (submitLetters(mailAt(seed), ['The weather is nice.']).letters[0].lines[0].status === 'held') cold++;
     }
-    expect(hot).toBeGreaterThan(cold * 2);
+    expect(hot).toBe(cold); // the same rare rejection, and nothing more
+  });
+  it("answers the subject line next month, in that person's voice", () => {
+    let s = mailAt(31);
+    s = submitLetters(s, [{ to: 'mother', topic: 'release', text: '' }]);
+    expect(s.outbox).toHaveLength(1);
+    s = nextMail(s);
+    const reply = s.inbox.find((x) => x.m === s.m);
+    expect(reply?.from).toBe('your mother');
+    expect(reply?.subject).toBe('Re: My release date');
+  });
+  it('puts a message with a listed word in review: the reply comes late, and says so', () => {
+    let s = mailAt(33);
+    s = submitLetters(s, [{ to: 'mother', topic: 'checkin', text: 'Can you send it by cashapp?' }]);
+    expect(s.letters[0].lines[0].status).toBe('delayed');
+    expect(s.letters[0].lines[0].flagged).toContain('cashapp');
+    s = nextMail(s);
+    const reply = s.inbox.find((x) => x.m === s.m)!;
+    expect(VOICES.mother.late.some((l) => reply.text.startsWith(l.text))).toBe(true);
+  });
+  it('gets no answer from someone who has left your life', () => {
+    let s = mailAt(35, 'partner_moving');
+    s = submitLetters(s, [{ to: 'partner', topic: 'checkin', text: '' }]);
+    s.ties.find((t) => t.id === 'partner')!.gone = true;
+    s = nextMail(s);
+    expect(s.inbox).toHaveLength(0);
+  });
+  it('sends nothing while messages are restricted by a sanction', () => {
+    const s = mailAt(37);
+    s.commsUntil = s.m;
+    const after = submitLetters(s, ['hello']);
+    expect(after.letters[0].lines[0].status).toBe('held');
+    expect(after.outbox).toHaveLength(0);
+    expect(after.rejections[0].kind).toBe('restricted');
+    expect(after.rejections[0].stage).toBe('none');
+  });
+  it('reviews a rejected outgoing message automatically, with nothing to appeal', () => {
+    let s = mailAt(39);
+    const many = Array.from({ length: 150 }, () => ({ to: 'mother', topic: 'checkin', text: 'Thinking about home a lot this week.' }));
+    s = submitLetters(s, many);
+    const out = s.rejections.filter((x) => x.dir === 'out' && x.kind === 'rejected');
+    expect(out.length).toBeGreaterThan(0);
+    expect(out[0].stage).toBe('superintendent');
+    expect(out[0].status).toBe('pending');
+    s = nextMail(s);
+    expect(appealRejection(s, out[0].id)).toBe(s); // you can't appeal your own outgoing message
+    const r = s.rejections.find((x) => x.id === out[0].id)!;
+    expect(['overturned', 'pending']).toContain(r.status); // overturned, or passed up to Headquarters
+    if (r.status === 'pending') expect(r.stage).toBe('hq');
+  });
+  it('ends an upheld outgoing rejection at Headquarters: kept two years, destroyed, never returned', () => {
+    let s = mailAt(41);
+    for (let i = 0; i < 200; i++) {
+      s.rejections.push({ id: i, dir: 'out', kind: 'rejected', m: s.m - 2, noticed: s.m - 1, to: 'mother', who: 'your mother', topic: 'checkin', subject: 'Checking in', text: 'Thinking about home a lot.', reason: 'x', stage: 'hq', status: 'pending', decide: s.m + 1 });
+    }
+    s = nextMail(submitLetters(s, ['Thinking of you all today.']));
+    const overturned = s.rejections.filter((x) => x.status === 'overturned').length;
+    expect(s.rejections.every((x) => x.status !== 'pending')).toBe(true);
+    expect(overturned).toBeGreaterThan(5);
+    expect(overturned).toBeLessThan(45);
+    expect(s.lines.some((l) => /two years and then destroyed/.test(l))).toBe(true);
+    expect(s.outbox.filter((o) => o.late && o.m < s.m - 1)).toHaveLength(overturned);
+  });
+  it('lets you appeal a rejected message from home, twice, and delivers it if overturned', () => {
+    let s = mailAt(43);
+    s.rejections.push({ id: 0, dir: 'in', kind: 'rejected', m: s.m, noticed: s.m, to: 'mother', who: 'your mother', topic: 'checkin', subject: 'Re: Checking in', text: 'Love, Mom', reason: 'x', stage: 'none' });
+    s = appealRejection(s, 0);
+    expect(s.rejections[0].stage).toBe('superintendent');
+    expect(appealRejection(s, 0)).toBe(s); // one appeal at a time
+    let delivered = 0;
+    let finals = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      let t = structuredClone(s);
+      t.rng = seed;
+      t = nextMail(submitLetters(t, ['Thinking of you all today.']));
+      const r = t.rejections[0];
+      if (r.status === 'overturned') {
+        delivered++;
+        expect(t.inbox.some((x) => x.text === 'Love, Mom')).toBe(true);
+        continue;
+      }
+      expect(r.status).toBe('upheld');
+      t = appealRejection(t, 0);
+      expect(t.rejections[0].stage).toBe('hq');
+      if (t.visitPending) t = chooseVisit(t, 'money');
+      t = nextMail(submitLetters(t, ['Thinking of you all today.']));
+      if (t.rejections[0].status === 'upheld') finals++;
+    }
+    expect(delivered).toBeGreaterThan(0);
+    expect(finals).toBeGreaterThan(30);
   });
 });
 
@@ -392,6 +488,35 @@ describe('discipline (WAC 137-28, DOC 460.000, DOC 460.050)', () => {
     s = submitLetters(chooseVisit(toMail(s), 'money'), ['x']);
     expect(s.job).toBe(false);
     expect(s.cellieId).not.toBe(cellie);
+  });
+  it('a strip search after a visit can find a fight nobody wrote up, unless you tell them to stay home', () => {
+    const fight: Break = { ...forcedMajor, forced: false, ser: '505', dice: { ...forcedMajor.dice } }; // no dice: never caught
+    let found = 0;
+    for (let seed = 80; seed < 120; seed++) {
+      let s = eyes(hub(seed, { out: 'mother' }), [fight]);
+      while (s.hearings.length) s = plead(s, 'guilty');
+      s = toMail(s);
+      if (!s.visitPending || s.infractions.some((x) => x.code === '505')) continue; // a kite already gave it away
+      expect(s.visitRisk).toBe('fight');
+      const home = chooseVisit(s, 'stayHome');
+      expect(home.visitMonths).not.toContain(s.m);
+      expect(home.pendingBreaks).toHaveLength(0);
+      const took = chooseVisit(s, 'money');
+      if (took.pendingBreaks.length) {
+        found++;
+        expect(took.pendingBreaks[0].ser).toBe('505');
+        const next = submitLetters(took, ['x']);
+        expect(next.mo.breaks.some((b) => b.ser === '505' && b.forced)).toBe(true);
+      }
+    }
+    expect(found).toBeGreaterThan(0);
+  });
+  it('being attacked in front of officers leaves nothing for a strip search to find', () => {
+    let s = hub(121, { out: 'mother' });
+    s.cur = { card: structuredClone(YARD.get('payback')!), source: 'yard' };
+    s.phase = 'card';
+    s = continueResult(choose(s, 'take'));
+    expect(visibleMarks(s)).toBeNull();
   });
   it('a dirty UA or a phone is not alone grounds for segregation', () => {
     for (const ser of ['675', '882']) {

@@ -40,8 +40,10 @@ export const CHARGES: Charge[] = [
     }
   },
   {
-    id: 'possession', name: 'Possession of a controlled substance †', consp: 1,
-    claim: 'Possession of a controlled substance. "Was using when they picked him up."',
+    // Simple possession is no longer a felony in Washington (State v. Blake, 2021; the 2023 law makes it a gross
+    // misdemeanor), so it can't send anyone to prison. The drugs stay in the story and in the Pull.
+    id: 'stolen_vehicle', name: 'Possession of a stolen vehicle †', consp: 1,
+    claim: 'Possession of a stolen vehicle. "Was using when they picked him up."',
     truth: 'It was never about the high. It was about making the nights short.',
     pull: {
       id: 'pull_possession', rule: 'possession', title: 'When someone offers you something to get through the night',

@@ -7,7 +7,7 @@ import type { Cellie } from '../engine/types';
 export const CELLIES: Cellie[] = [
   { id: 'ink', code: '710', name: 'Ink', front: 'Quiet, older. Sketches all day.',
     back: 'Runs a tattoo gun (motor from a fan, ink from soot). Offers free ink; a fresh tattoo adds +1 Conspicuity if it\'s gang work.',
-    owns: 3, has: true, contraband: true, drugs: false, cut: { commissary: 2, log: 'He pays you for keeping the door.' } },
+    owns: 3, has: true, contraband: true, drugs: false, cut: { commissary: 2, flag: 'fresh_ink', log: 'He pays you for keeping the door, and puts fresh ink on your forearm. It takes a couple of weeks to heal.' } },
   { id: 'brewer', code: '670', name: 'Brewer', front: 'Friendly. Always has fruit from chow.',
     back: 'Brews pruno under the bunk. Cuts you in for 1 store a month.',
     owns: 4, has: true, contraband: true, drugs: false, cut: { monthly: { label: 'Pruno cut', commissary: 1 }, log: 'He cuts you in: +1 store a month.' } },
@@ -16,7 +16,7 @@ export const CELLIES: Cellie[] = [
     owns: 6, has: true, contraband: true, drugs: true, cut: { commissary: 3, debt: 'your cellie', log: 'He fronts you store early.' } },
   { id: 'phone', code: '882', name: 'Phone', front: 'Always on the bunk with his back to the door.',
     back: 'Keeps a cell phone. Nobody asks how it got in: phones come through a staff door, which is why the institution treats one like a weapon. Lets you use it once.',
-    owns: 5, has: true, contraband: true, drugs: false, cut: { log: 'You use the phone once. Someone picks up.', newTie: { id: 'picked_up', who: 'the person who picked up', to: 'the person who picked up', role: 'friend', weight: 1, visits: true, efv: false, wait: 2, ifNone: true } } },
+    owns: 5, has: true, contraband: true, drugs: false, cut: { flag: 'used_phone', log: 'You use the phone once. Someone picks up.', newTie: { id: 'picked_up', who: 'the person who picked up', to: 'the person who picked up', role: 'friend', weight: 1, visits: true, efv: false, wait: 2, ifNone: true } } },
   { id: 'store', code: '714', name: 'Store man', front: 'Commissary stacked to the ceiling.',
     back: 'Runs a store at two-for-one. Will front you anything, and will collect.',
     owns: 3, has: true, contraband: true, drugs: false, cut: { commissary: 4, debt: 'the store man', log: 'He fronts you 4 store at two-for-one.' } },

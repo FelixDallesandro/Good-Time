@@ -1,7 +1,9 @@
 import { CHARGES, BACKGROUNDS, OUTSIDES } from './content';
-import {
+import { chooseCourt,
+  advanceRelease,
   applyEfv,
   beginSentence,
+  releaseCard,
   cardChoices,
   chooseVisit,
   choose,
@@ -64,6 +66,8 @@ export interface PlayOpts {
   policy?: Policy;
   /** yard card ids placed on top of the deck at the start, e.g. to force The Ask. */
   inject?: string[];
+  /** The court at intake: default is the first deal, keeping quiet. */
+  court?: { path: 'deal' | 'trial'; talk?: boolean };
 }
 
 export function playGame(seed: number, opts: PlayOpts = {}): Game {
@@ -76,6 +80,7 @@ export function playGame(seed: number, opts: PlayOpts = {}): Game {
     name: 'Test'
   });
   if (opts.inject) s.yardDeck = [...opts.inject, ...s.yardDeck];
+  if (opts.court) s = chooseCourt(s, opts.court.path, opts.court.talk);
   s = beginSentence(s);
   for (let guard = 0; guard < 5000 && s.phase !== 'over'; guard++) {
     switch (s.phase) {
@@ -93,7 +98,10 @@ export function playGame(seed: number, opts: PlayOpts = {}): Game {
         s = s.hearings.length ? plead(s, s.m % 3 ? 'guilty' : 'contest') : toMail(s);
         break;
       case 'mail':
-        s = s.visitPending ? chooseVisit(s, 'money') : submitLetters(s, ['Doing fine.']);
+        s = s.visitPending ? chooseVisit(s, 'money') : submitLetters(s, ['Doing fine in here, mostly.']);
+        break;
+      case 'release':
+        s = advanceRelease(s, releaseCard(s)!.choices[0].id);
         break;
       default:
         throw new Error(`stuck in phase ${s.phase}`);

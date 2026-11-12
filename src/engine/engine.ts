@@ -3,12 +3,15 @@ import {
   PULL_STICKY, YARD, background, cellie, charge, codeMove, facility, outside, CODE_MOVES
 } from './content';
 import { d, next, pickN, shuffle } from './rng';
+import { flaggedWords } from '../content/keywords';
+import { CASES, sentenceFor, timeScale, type Offer, type Path } from '../content/sentencing';
+import { TOPICS, compose, replyContext, type Topic } from './replies';
 import {
   GENERAL_SANCTIONS, NO_WEIGHTS, PETTY, PHONE_LOSS, SEG_CODES, SERIOUS_SANCTIONS, TRAFFICKING_GCT, violation
 } from '../content/violations';
 import type {
-  Card, Character, Choice, Cond, Effect, Game, Groove, Hearing, Infraction, Month, Officer, PullDef, RollSpec, RumorTag,
-  Stat, Style, Tie, TieDef, TieOp
+  Card, Character, Choice, Cond, Effect, Game, Groove, Hearing, Infraction, Letter, Month, Officer, PullDef, RollSpec, RumorTag,
+  OutMsg, SlipId, Stat, Style, Tie, TieDef, TieOp
 } from './types';
 
 export const STATS: Stat[] = ['nerve', 'hustle', 'cool', 'heart'];
@@ -29,6 +32,8 @@ export function modFor(roll: number): number {
   return 2;
 }
 export const has = (s: Game, id: string) => !!s.char?.failings.includes(id);
+/** An arrest record before this sentence. */
+export const hasPriors = (s: Game) => !!(s.char && background(s.char.backgroundId).priors);
 export const statMod = (s: Game, k: Stat) => s.char!.stats[k].mod;
 export const consp = (s: Game) => clamp(s.char!.conspBase + s.consBonus, -2, 2);
 export const releaseMonth = (s: Game) => s.sentence - s.boxes;
@@ -155,6 +160,7 @@ export function computeDice(s: Game, spec: RollSpec): Dice {
     if (s.mo.officer.mood === 'cruel') blueNo += 1;
     if (s.mo.officer.mood === 'decent') blueNo -= 1;
     if (has(s, 'mouthy')) blueNo += 1;
+    if (hasPriors(s)) blueNo += 1; // they read the file
   }
   blueNo = Math.max(0, blueNo);
   let blue = Math.max(0, blueNo + (applies ? c : 0));
@@ -203,22 +209,23 @@ function emptyMonth(officer: Officer): Month {
     officer, noBlue: false, blueMonth: 0, discBlue: 0, testWhite: 0, warn: false, noVisits: false,
     noMessages: false, delayMessages: false, scenesLeft: 0, sceneInit: false, lockdown: false,
     caught: false, fought: false, searched: false, breaks: [], medicalDone: false, notes: [],
-    confined: false, seriousGuilty: false, efvNow: false, seg: false
+    confined: false, seriousGuilty: false, efvNow: false, seg: false, blank: false
   };
 }
 
 export function newGame(facilityId: string, seed: number): Game {
   const f = facility(facilityId);
   const s: Game = {
-    v: 3, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, added: 0, m: 1, lastAct: '',
+    v: 3, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, court: null, perTurn: 1,
+    treatment: { sessions: 0, need: TREATMENT_SESSIONS, misses: 0, failed: false, done: false }, added: 0, m: 1, lastAct: '',
     char: null, cellieId: '', draft: null, standing: f.startStanding, support: 0, ties: [], boxes: 0, maxBoxes: f.boxes,
     baseBoxes: f.boxes, gctLost: 0, classPoints: 0, crsBase: f.crs, progPoints: 0, infractions: [], hearings: [], lopUntil: 0, segUntil: 0, segPlacements: [], confinedUntil: 0,
     phoneUntil: 0, commsUntil: 0, visitMonths: [], efv: { status: 'none', decide: 0, next: 0, until: 0, done: 0 },
     commissary: 5, rumors: [], strings: [], proven: false, consBonus: 0, hurt: false, contraband: 0, job: false,
     flags: {}, usedMoves: {}, pull: {}, privateFlipped: false, blueOnce: 0, blueNext: 0, extraLines: 0,
-    skipNext: 0, visitPending: false, visitBanMonth: 0, visitBanAct: '', marks: 0,
+    skipNext: 0, visitPending: false, visitRisk: null, pendingBreaks: [], visitBanMonth: 0, visitBanAct: '', marks: 0,
     missionsDrawn: 0, monthly: [], deferred: [], yardDeck: [], yardDiscard: [], countDeck: [], queue: [],
-    cur: null, result: null, mo: emptyMonth(OFFICERS[0]), letters: [], ledger: [], report: [], lines: [],
+    cur: null, result: null, mo: emptyMonth(OFFICERS[0]), letters: [], outbox: [], inbox: [], rejections: [], routine: 0, release: null, ledger: [], report: [], lines: [],
     actUsed: {}, groove: newGroove(), stats: { letGo: 0, fights: 0, informed: 0, putInWork: 0, pullGiven: 0, pullWalked: 0, caught: 0 },
     ending: null
   };
@@ -293,9 +300,15 @@ export function draftPick(
     codeMoveId: pickN(s, CODE_MOVES, 1)[0].id,
     stats, failings,
     conspBase: conspFacts(s.facilityId, ch.id, bg.id).total,
-    privateTag, knownOfficer, claim: ch.claim
+    privateTag, knownOfficer, claim: ch.claim,
+    docNumber: docNumberFor(s, bg.priorDoc ? bg.age : null)
   };
-  s.sentence = bg.sentence;
+  setCourt(s, 'deal');
+  // been down before: the place is not new, and the number is not new either
+  if (bg.priorDoc) {
+    s.routine = bg.age >= 37 ? 8 : 4;
+    s.flags.routineSeen = routineLevel(s);
+  }
   // Support is the people on the Outside card. Heart +1 makes one of them hold on harder; with no one, it adds nothing.
   s.ties = out.ties.map((t) => ({ ...t, gone: false, ready: 0 }));
   if (stats.heart.mod >= 1 && s.ties.length) s.ties[0].weight += 1;
@@ -330,6 +343,7 @@ export function draftPick(
 export function beginSentence(g: Game): Game {
   const s = clone(g);
   s.m = 1;
+  scheduleExposure(s);
   startMonth(s);
   return s;
 }
@@ -409,6 +423,11 @@ function startMonth(s: Game) {
   }
   if (confined) L(s, 'Confinement to cell: one scene this month, in your cell.');
   else if (onSheet(s)) L(s, 'Loss of privileges: no yard, no gym, no dayroom. Your photo is on the sheet in the bubble.');
+  const lvl = routineLevel(s);
+  if (lvl > Number(s.flags.routineSeen ?? 0)) {
+    s.flags.routineSeen = lvl;
+    L(s, ROUTINE_NOTES[lvl]);
+  }
   const notes = s.lines.slice();
   s.lines = [];
   s.report = [];
@@ -416,7 +435,10 @@ function startMonth(s: Game) {
   const officer = OFFICERS.find((o) => o.name === first.officer) ?? OFFICERS[Math.floor(next(s) * OFFICERS.length)];
   s.mo = emptyMonth(officer);
   s.mo.notes = notes;
+  s.mo.breaks.push(...(s.pendingBreaks ?? []));
+  s.pendingBreaks = [];
   s.mo.efvNow = efvNow && !seg;
+  if (lvl >= 4 && !seg && !efvNow && next(s) < 0.3) s.mo.blank = true;
   s.mo.seg = seg;
   if (confined) {
     s.mo.lockdown = true;
@@ -426,6 +448,9 @@ function startMonth(s: Game) {
   s.blueNext = 0;
   s.queue = [first];
   if (act === 'short') s.queue.push(drawCount(s));
+  if (lvl >= 2 && !seg && next(s) < 0.5) s.queue.push(countCard(s));
+  if (!seg && treatmentDue(s)) s.queue.push(treatmentCard(s));
+  if (s.flags.exposeAt && !s.flags.exposed && s.m >= Number(s.flags.exposeAt) && !seg) s.queue.push(paperworkCard(s));
   if (s.standing === 0) s.queue.push(clone(PROMPTS.get('targeted')!));
   if (s.m >= 2 && !s.actUsed[act].leak && next(s) < 0.35) {
     s.actUsed[act].leak = true;
@@ -447,7 +472,7 @@ function startMonth(s: Game) {
   // The Pull is never a choice: you roll for it
   const skip = !!s.flags.skip_pull;
   delete s.flags.skip_pull;
-  const forced = cellieOf(s).id === 'hooch' && (has(s, 'habit') || s.char?.chargeId === 'possession');
+  const forced = cellieOf(s).id === 'hooch' && (has(s, 'habit') || (!!s.char && charge(s.char.chargeId).pull.rule === 'possession'));
   if (!skip) {
     for (const def of pullDefs(s)) {
       if (s.pull[def.id]?.torn) continue;
@@ -464,7 +489,7 @@ export function pullCard(s: Game, def: PullDef): Card {
     text: def.text,
     choices: [{
       id: 'roll', label: 'Roll your Pull', special: 'pullRoll',
-      text: `Roll a d6: 1-${4 - t} you give in; ${5 - t}-6 you walk past and make a tally mark (${t}/3). A Pull is never a choice.`
+      text: `Roll a d6: 1-${4 - t + (hasPriors(s) ? 1 : 0)} you give in; ${5 - t + (hasPriors(s) ? 1 : 0)}-6 you walk past and make a tally mark (${t}/3).${hasPriors(s) ? ' You have done this before, and it shows.' : ''} A Pull is never a choice.`
     }]
   };
 }
@@ -481,7 +506,7 @@ function showNext(s: Game) {
 }
 
 function scenesFor(s: Game): number {
-  if (s.mo.seg) return 0;
+  if (s.mo.seg || s.mo.blank) return 0;
   if (s.mo.lockdown) return 1;
   return s.standing === 0 ? 2 : 1;
 }
@@ -684,6 +709,10 @@ function rawLock(s: Game, ch: Choice, failings: boolean): string | null {
   if (ch.needs?.support && s.support < ch.needs.support) return `Needs Support ${ch.needs.support}`;
   if (ch.tag === 'violent' && s.hurt) return "You're hurt";
   if (ch.phone && s.phoneUntil >= s.m) return 'Phone privileges restricted';
+  // what the place has made ordinary closes some doors without anyone locking them
+  const cardId = s.cur?.card.id;
+  if (cardId === 'any_grievance' && ch.id === 'file' && routineLevel(s) >= 3) return "You don't file those anymore. What would be the point.";
+  if (cardId === 'any_hand' && ch.id === 'help' && routineLevel(s) >= 4) return 'Not your business. Not anymore.';
   if (!failings) return null;
   if (s.cur?.onlyViolent && ch.tag !== 'violent' && s.cur.card.tag === 'test') return "You're looking for a fight";
   if (ch.tag === 'letGo' && s.cur?.noLetGo) return 'Short Fuse';
@@ -908,7 +937,7 @@ function resolvePull(s: Game, pullId: string) {
   const def = pullDefs(s).find((p) => p.id === pullId);
   const st = s.pull[pullId];
   if (!def || !st) return;
-  const giveMax = 4 - st.tallies;
+  const giveMax = 4 - st.tallies + (hasPriors(s) ? 1 : 0);
   const r = d(s, 6);
   if (r <= giveMax) {
     L(s, `Rolled ${r}: you give in.`);
@@ -1160,6 +1189,222 @@ function addBoxes(s: Game, n: number) {
 }
 
 /* ------------------------------------------------------------------ */
+/* The court: the grid, the deal, and the turns                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Take the deal or go to trial. The deal is the reduced sheet at the agreed number, and you tell what you know. Trial
+ * is the top of the range on everything charged. Either way, the real months become turns: at least 12 served.
+ */
+export function setCourt(s: Game, path: Path, talk = false, offer: Offer = s.court?.offer ?? 'first') {
+  if (!s.char) return;
+  const bg = background(s.char.backgroundId);
+  talk = path === 'deal' && talk && !!CASES[s.char.chargeId]?.info;
+  const sen = sentenceFor(s.char.chargeId, bg.score, path, bg.case.map((c) => c.bad), { talk, offer });
+  const t = timeScale(sen);
+  s.court = {
+    path, offense: sen.sheet.offense, rcw: sen.sheet.rcw, level: sen.sheet.level, grid: sen.sheet.grid,
+    counts: sen.sheet.counts, score: sen.score, range: sen.range, base: sen.base, enh: sen.sheet.enh,
+    enhMonths: sen.enhMonths, months: sen.months, earnedMax: sen.earnedMax, strike: sen.sheet.strike, talked: talk, offer
+  };
+  s.perTurn = t.perTurn;
+  s.sentence = t.turns;
+  s.baseBoxes = t.boxes;
+  s.maxBoxes = t.boxes;
+  s.boxes = 0;
+}
+
+/** Choose at intake, before the sentence begins. Talking is only on the table where there is someone to tell on. */
+export function chooseCourt(g: Game, path: Path, talk = false): Game {
+  if (g.phase !== 'sheet' || !g.char || !CASES[g.char.chargeId]) return g;
+  const s = clone(g);
+  setCourt(s, path, talk);
+  return s;
+}
+
+/** Odds after turning down the first offer (game numbers): a third better, half the same, a sixth worse. */
+export const OFFER_ODDS = { better: 1 / 3, same: 1 / 2 };
+
+/** Turn down the first offer, once. The prosecutor doesn't want a trial either, usually. */
+export function refuseOffer(g: Game): Game {
+  if (g.phase !== 'sheet' || !g.char || !g.court || g.court.offer !== 'first') return g;
+  const s = clone(g);
+  const r = next(s);
+  const offer: Offer = r < OFFER_ODDS.better ? 'better' : r < OFFER_ODDS.better + OFFER_ODDS.same ? 'same' : 'worse';
+  setCourt(s, 'deal', g.court.talked, offer);
+  return s;
+}
+
+/* Paperwork: a snitch jacket, if you talked. It may come out, or you may coast the sentence without it. */
+
+/** Game odds that it ever comes out: a codefendant who lands inside and talks, or a paper trail someone pulls. */
+export const EXPOSE_ODDS = { codefendant: 0.5, paper: 0.25, paperClose: 0.4 };
+
+const EXPOSE_HOW = ['codefendant', 'transcripts', 'newspaper'] as const;
+
+function scheduleExposure(s: Game) {
+  if (!s.court?.talked || !s.char) return;
+  const info = CASES[s.char.chargeId]?.info;
+  const last = Math.max(3, releaseMonth(s) - 1);
+  const at = () => 2 + Math.floor(next(s) * (last - 1));
+  const hits: { m: number; how: string }[] = [];
+  if (info === 'codefendant' && next(s) < EXPOSE_ODDS.codefendant) hits.push({ m: at(), how: 'codefendant' });
+  if (next(s) < (s.custody === 'close' ? EXPOSE_ODDS.paperClose : EXPOSE_ODDS.paper))
+    hits.push({ m: at(), how: next(s) < 0.5 ? 'transcripts' : 'newspaper' });
+  hits.sort((a, b) => a.m - b.m);
+  if (hits.length) {
+    s.flags.exposeAt = hits[0].m;
+    s.flags.exposeHow = EXPOSE_HOW.indexOf(hits[0].how as (typeof EXPOSE_HOW)[number]);
+  }
+}
+
+function paperworkCard(s: Game): Card {
+  const how = EXPOSE_HOW[Number(s.flags.exposeHow)];
+  const text = how === 'codefendant'
+    ? 'Your codefendant came in on the chain last week. Now the tier is saying you told. Two of the car come by your cell and ask to see your paperwork.'
+    : how === 'transcripts'
+      ? "Somebody's people pulled the transcripts from your case through public disclosure. Copies are going around the tier. Your name is on the pages where you talked."
+      : "Someone on the tier has a printout of a newspaper story about your case. It says you cooperated. It's been passed hand to hand.";
+  const choices: Choice[] = [];
+  // only word of mouth leaves room to defend yourself; pages in hand don't
+  if (how === 'codefendant')
+    choices.push({ id: 'show', label: 'Show them your J&S', text: 'Your judgment and sentence lists your charges and nothing else. It may be enough. It may not.', effect: { paperwork: 'show' } });
+  choices.push(
+    { id: 'deny', label: 'Deny it', text: 'Say it is a lie and dare anyone to prove it.', effect: { paperwork: 'deny' } },
+    { id: 'pc', label: 'Check in', text: 'Ask for protective custody before they come for you.', effect: { paperwork: 'pc' } }
+  );
+  return { id: 'paperwork', kind: 'prompt', title: 'Paperwork', text, choices };
+}
+
+function paperworkStep(s: Game, how: 'show' | 'deny' | 'pc') {
+  s.flags.exposed = true;
+  if (how === 'pc') {
+    apply(s, { pc: true, coopRumors: 1 });
+    return;
+  }
+  const close = s.custody === 'close'; // people hunt rats hardest in close custody
+  if (how === 'show' && next(s) < (close ? 0.35 : 0.5)) {
+    L(s, 'They read it twice and hand it back. For now, that is enough.');
+    apply(s, { coopRumors: 1 });
+    return;
+  }
+  L(s, how === 'show' ? 'They read it and hand it back. The J&S was never going to settle it.' : 'Nobody believes you. Nobody says so to your face.');
+  apply(s, { coopRumors: 2, standing: close ? -2 : -1 });
+  if (close) shuffleIn(s, 'payback');
+}
+
+/** The real calendar behind a turn: months, or weeks when the sentence is short enough that a turn is less. */
+export function clock(s: Game, turn: number): string {
+  const per = s.perTurn ?? 1;
+  if (per < 0.95) return `week ${Math.max(1, Math.round((turn * per * 52) / 12))}`;
+  return `month ${Math.max(1, Math.round(turn * per))}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Treatment: the assessment always finds something                    */
+/* ------------------------------------------------------------------ */
+
+/** Groups to complete (game number). Two missed or refused, and you're terminated from the program (game number). */
+export const TREATMENT_SESSIONS = 3;
+export const TREATMENT_MISSES = 2;
+
+function treatmentCard(s: Game): Card {
+  const n = s.treatment.sessions - s.treatment.misses + 1;
+  return {
+    id: 'treatment', kind: 'prompt', title: 'Treatment',
+    text: n === 1
+      ? 'Substance use disorder group. Your assessment found a disorder that needs treatment; everyone\'s does. The counselor says the first step is admitting it. Finish the program or serve to your max date, good time or not.'
+      : `Group, session ${n} of ${s.treatment.need}. The counselor goes around the circle. When it's your turn, they want to hear you say it.`,
+    choices: [
+      { id: 'comply', label: 'Say what they want to hear', text: 'You say the words. The counselor writes something down.', effect: { treatment: 'comply' } },
+      { id: 'refuse', label: "Tell them you don't have a problem", text: 'You tell the truth as you see it. The counselor writes something down.', effect: { treatment: 'refuse' } }
+    ]
+  };
+}
+
+/** When group comes around: spread across the back half of the sentence, never in seg. */
+function treatmentDue(s: Game): boolean {
+  const t = s.treatment;
+  if (!t || t.done || t.failed) return false;
+  const start = Math.floor(releaseMonth(s) / 2);
+  const left = releaseMonth(s) - s.m;
+  const remaining = t.need - (t.sessions - t.misses);
+  return s.m >= start && remaining > 0 && (left <= remaining * 2 || next(s) < 0.5);
+}
+
+function treatmentStep(s: Game, how: 'comply' | 'refuse') {
+  const t = s.treatment;
+  t.sessions += 1;
+  if (how === 'comply') s.routine = (s.routine ?? 0) + 0.5; // you learn to say what the file wants
+  else t.misses += 1;
+  if (t.misses >= TREATMENT_MISSES) {
+    t.failed = true;
+    L(s, 'Terminated from treatment: non-compliance. You will serve to your max date. Your good time no longer counts.');
+    syncBoxes(s);
+    return;
+  }
+  if (t.sessions - t.misses >= t.need) {
+    t.done = true;
+    L(s, 'Treatment complete. A certificate goes in your file.');
+  } else if (how === 'refuse') L(s, 'The counselor notes it: denial. One more and you are out of the program.');
+}
+
+/* ------------------------------------------------------------------ */
+/* Routine: what the place makes ordinary                              */
+/* ------------------------------------------------------------------ */
+
+/** 0 to 4. Every month adds to it; a lockdown, confinement, seg, or loss of privileges adds more; contact slows it. */
+/**
+ * A DOC number is issued once and follows you back. New numbers are 4-series. Someone who has been down before keeps
+ * theirs: an 8-series if they were first committed before those stopped being issued (around 2007-2008, so late 30s
+ * and older now), otherwise a 3 or 4 series.
+ */
+function docNumberFor(s: Game, priorAge: number | null): string {
+  const series = priorAge === null ? '4' : priorAge >= 37 ? '8' : next(s) < 0.5 ? '3' : '4';
+  return series + String(Math.floor(next(s) * 100000)).padStart(5, '0');
+}
+
+export const routineLevel = (s: Game) => Math.min(4, Math.floor((s.routine ?? 0) / 4));
+
+/** What the screens call you. The name goes first, then it shares space with the number, then it's gone. */
+export function displayName(s: Game): string {
+  if (!s.char) return '';
+  const lvl = routineLevel(s);
+  if (lvl >= 3) return s.char.docNumber;
+  if (lvl === 2) return `${s.char.name}, ${s.char.docNumber}`;
+  return s.char.name;
+}
+
+const ROUTINE_NOTES = [
+  '',
+  "You stopped hearing the noise at night. You can't say when.",
+  'An officer calls your number, and you answer before you think.',
+  'You think of yourself by the number now. Your name feels like something you used to own.',
+  'You are standing at your door for count before anyone calls it.'
+];
+
+function countCard(s: Game): Card {
+  const n = s.char?.docNumber ?? '';
+  const lvl = routineLevel(s);
+  const text = lvl >= 4
+    ? 'Count. You were standing before they called it. Chow. Count. Nothing happens this month that you will remember.'
+    : lvl === 3
+      ? `Count. "${n}." "Here." Chow. Count. Yard. Count. The day folds into the shape it always has.`
+      : `Count. Stand by your bunk. "${n}." "Here." Then it's over, until the next one.`;
+  return { id: 'routine_count', kind: 'prompt', title: 'Count', text };
+}
+
+/** At the end of each month, the place takes a little more. Time with people outside gives some of it back. */
+function accrueRoutine(s: Game, sentReal: boolean) {
+  let r = 1;
+  if (s.mo.lockdown || s.mo.confined || s.mo.seg) r += 1;
+  if (onSheet(s)) r += 0.25;
+  if (s.visitMonths.includes(s.m)) r -= 0.5; // contact slows it; nothing stops it
+  if (sentReal) r -= 0.25;
+  s.routine = Math.max(0, (s.routine ?? 0) + r);
+}
+
+/* ------------------------------------------------------------------ */
 /* Ties: Support is the people outside, one by one                     */
 /* ------------------------------------------------------------------ */
 
@@ -1293,6 +1538,7 @@ function newCellie(s: Game) {
   delete s.flags.living_seen;
   delete s.flags.cellie_gone;
   L(s, `You have a new cellie: ${next1.front}`);
+  L(s, 'He asks to see your J&S before you put your property down. It lists your charges and nothing else.');
   apply(s, next1.setup);
 }
 
@@ -1441,8 +1687,12 @@ function apply(s: Game, e: Effect | undefined, ch?: Choice) {
     L(s, 'You leave the yard for protective custody.');
   }
   if (e.repeat) s.flags.__repeat = true;
+  if (e.treatment) treatmentStep(s, e.treatment);
+  if (e.paperwork) paperworkStep(s, e.paperwork);
   if (e.flag) {
     s.flags[e.flag] = true;
+    if (e.flag === 'fresh_ink') s.flags.inked = true; // healed or not, the ink stays
+    if (e.flag === 'used_phone') s.flags.used_phone = s.m;
     if (e.flag === 'efv_used') delete s.flags.promise_efv;
   }
   if (e.informed) s.stats.informed += 1;
@@ -1594,14 +1844,22 @@ export function stopCounting(g: Game): Game {
 export const onSheet = (s: Game) => s.lopUntil >= s.m;
 const monthsFor = (days: number) => Math.max(1, Math.ceil(days / 30));
 
-/** Good time is lost 30 days to a box, and lost for good: it lowers the boxes you can ever fill. */
+/** One box is one turn of earned release, so it holds as many days as a turn does. */
+export const daysPerBox = (s: Game) => Math.max(1, Math.round(30.4 * (s.perTurn ?? 1)));
+
+/** Good time is lost in days, a box at a time, and lost for good: it lowers the boxes you can ever fill. */
 export function syncBoxes(s: Game) {
   if (s.flags.stopped) {
     s.maxBoxes = 0;
     s.boxes = 0;
     return;
   }
-  s.maxBoxes = Math.max(0, s.baseBoxes - Math.floor(s.gctLost / 30));
+  if (s.treatment?.failed) {
+    s.maxBoxes = 0;
+    s.boxes = 0;
+    return;
+  }
+  s.maxBoxes = Math.max(0, s.baseBoxes - Math.floor(s.gctLost / daysPerBox(s)));
   s.boxes = Math.min(s.boxes, s.maxBoxes);
 }
 
@@ -1930,7 +2188,7 @@ export function rollEyes(g: Game): Game {
   }
   // discretion: some officers can always find something, and they look harder at some men than others
   const o = s.mo.officer;
-  const petty = (o.mood === 'cruel' ? 0.3 : o.name === 'Dahl' ? 0.25 : o.mood === 'decent' ? 0.02 : 0.08) + 0.05 * Math.max(0, consp(s));
+  const petty = (o.mood === 'cruel' ? 0.3 : o.name === 'Dahl' ? 0.25 : o.mood === 'decent' ? 0.02 : 0.08) + 0.05 * Math.max(0, consp(s)) + (hasPriors(s) ? 0.05 : 0);
   if (next(s) < petty) {
     const code = PETTY[Math.floor(next(s) * PETTY.length)];
     L(s, `${o.name} writes you up. CAUGHT. It is the officer's call, and the officer made it.`);
@@ -2058,8 +2316,9 @@ export function toMail(g: Game): Game {
     if (next(s) < (lead.weight >= 2 ? 0.9 : 0.7)) {
       s.visitPending = true;
       s.visitMonths.push(s.m);
+      s.visitRisk = visibleMarks(s);
       const who = `${lead.who}${kids.length ? ` brought ${kids.map((k) => k.who).join(' and ')}` : ' came'}`;
-      if (s.mo.seg) L(s, `Visiting day, from segregation: ${who}. A no-contact visit, one hour. You cannot touch them. In segregation that is all there is, once a week.`);
+      if (s.mo.seg || s.segUntil > s.m) L(s, `Visiting day, from segregation: ${who}. A no-contact visit, one hour. You cannot touch them. In segregation that is all there is, once a week.`);
       else L(s, `Visiting day. An officer calls your name: ${who}.`);
     } else {
       L(s, 'Visiting day. You are dressed early and waiting in your cell. You ask the officer to call up front. "Nobody\'s shown up." Visiting hours end. Nobody calls your name.');
@@ -2102,17 +2361,86 @@ export function toMail(g: Game): Game {
     L(s, 'You said too much to the wrong man.');
     pin(s, s.char!.privateTag);
   }
+  deliverMessages(s);
   processDeferred(s, 'month');
   if (s.m >= s.sentence - s.boxes) s.ending = 'released';
   s.phase = 'mail';
   return s;
 }
 
-export function chooseVisit(g: Game, which: 'money' | 'steady'): Game {
+/**
+ * What a strip search after a visit would find. Most institutions strip you out after every contact visit: fresh ink
+ * or the marks of a fight nobody wrote up become an infraction the moment you take the visit.
+ */
+export function visibleMarks(s: Game): 'fight' | 'ink' | null {
+  if (s.mo.seg || s.segUntil > s.m) return null; // a no-contact visit: no strip search
+  // a fight you took part in that nobody wrote up (being attacked in front of officers is already known)
+  const FIGHTS = ['505', '633', '502'];
+  const fightCaught = s.infractions.some((x) => x.m === s.m && FIGHTS.includes(x.code));
+  const hiddenFight = s.mo.breaks.some((b) => !b.forced && FIGHTS.includes(b.ser ?? ''));
+  if (hiddenFight && !fightCaught) return 'fight';
+  if (s.flags.fresh_ink) return 'ink';
+  return null;
+}
+
+/**
+ * Staff read incoming messages. A question from family that seems harmless can tell them exactly where to look.
+ * The consequence lands next month, and the write-up says where it came from.
+ */
+export function slipConsequence(s: Game, slip: SlipId, who: string) {
+  const blank = { blueNo: 0, blue: 0, white: 0, gray: 0, rumor: 0, applies: false };
+  if (slip === 'ink') {
+    if (next(s) < 0.5) {
+      s.pendingBreaks.push({ title: `Mail review: ${who} asked about a new tattoo`, dice: blank, severity: 'major', forced: 'major', ser: '710' });
+    }
+  } else if (slip === 'phone') {
+    // they come looking: a search of your cell, with your name on it
+    s.pendingBreaks.push({
+      title: `Mail review: ${who} asked about a phone number`, dice: { ...blank, blueNo: 3, blue: 3, applies: true },
+      severity: 'major', forced: false, ser: '882'
+    });
+  } else if (slip === 'efv') {
+    if (s.efv.status === 'approved') {
+      s.efv.status = 'applied';
+      s.efv.decide = s.m + 2;
+      s.efv.next = 0;
+    }
+  } else if (slip === 'money' && next(s) < 0.5) {
+    s.pendingBreaks.push({
+      title: `Mail review: ${who} mentioned sending money to someone`, dice: { ...blank, blueNo: 2, blue: 2 },
+      severity: 'major', forced: false, ser: '714'
+    });
+  }
+}
+
+export function chooseVisit(g: Game, which: 'money' | 'steady' | 'stayHome'): Game {
   if (g.phase !== 'mail' || !g.visitPending) return g;
   const s = clone(g);
   s.lines = g.lines.slice();
   s.visitPending = false;
+  const risk = s.visitRisk;
+  s.visitRisk = null;
+  if (which === 'stayHome') {
+    s.visitMonths = s.visitMonths.filter((m) => m !== s.m);
+    s.visitBanMonth = s.m; // nobody comes, and nobody is told why
+    L(s, risk === 'ink'
+      ? 'You tell them to stay home this week. You say the unit is on lockdown. It is not. The ink needs another week to heal.'
+      : 'You tell them to stay home this week. You say you have a cold. You do not tell them about your face.');
+    return s;
+  }
+  if (risk) {
+    L(s, 'After the visit, they strip you out. Every visit, every time.');
+    if (next(s) < 0.6) {
+      L(s, risk === 'ink'
+        ? 'The officer sees the fresh ink on your forearm, still raised. He writes it down.'
+        : 'The officer sees the bruising on your ribs and asks where it came from. You say you fell. He writes it down.');
+      s.pendingBreaks.push({
+        title: risk === 'ink' ? 'Strip search: fresh ink' : 'Strip search: marks from a fight',
+        dice: { blueNo: 0, blue: 0, white: 0, gray: 0, rumor: 0, applies: false },
+        severity: 'major', forced: 'major', ser: risk === 'ink' ? '710' : '505'
+      });
+    } else L(s, 'The officer is moving fast. He does not look closely.');
+  }
   if (which === 'money') {
     s.commissary += s.support;
     L(s, `Money on your books: +${s.support} store.`);
@@ -2123,39 +2451,275 @@ export function chooseVisit(g: Game, which: 'money' | 'steady'): Game {
   return s;
 }
 
-const SENSITIVE = /(staff|officer|guard|co\b|sergeant|yard|grievance|snitch|rat\b|car\b|gang|cop|warden|lieutenant)/i;
+/* ------------------------------------------------------------------ */
+/* Messages: the tablet                                                */
+/* ------------------------------------------------------------------ */
 
-export function submitLetters(g: Game, lines: string[]): Game {
+/** Tablet messages from inside are capped at 6,000 characters. Longer ones take longer to clear review. */
+export const MESSAGE_LIMIT = 6000;
+const LONG_MESSAGE = 2000;
+/** Fewer words than this is a blank message: a subject line and nothing to say. People notice. */
+export const BLANK_WORDS = 3;
+export const isBlank = (text: string) => text.trim().split(/\s+/).filter(Boolean).length < BLANK_WORDS;
+/** Rejections happen, rarely, with a notice (DOC 450.100 Attachment 2, form 05-525). */
+const REJECT_CHANCE = 0.03;
+/**
+ * The reasons a notice gives. These are the catch-alls from DOC 450.100 Attachment 4, quoted: broad enough to cover
+ * anything, specific enough to sign.
+ */
+const REJECT_REASONS = [
+  'Violates or plans to violate facility procedures',
+  'Information considered to be a threat to the safety and security of the facility',
+  'Code or intentionally using any method in an attempt to defeat electronic messaging security features',
+  'Violates or plans to violate Department policy'
+];
+/** How often each level overturns a rejection. Game numbers: the policy gives none. */
+const OVERTURN = { superintendent: 0.15, hq: 0.1 };
+/** A family message is rejected about as often as yours. */
+const INCOMING_REJECT_CHANCE = 0.03;
+
+/**
+ * Appeal a rejected incoming message (DOC 450.100 Attachment 2). Only the person it was meant for, or its sender, may
+ * appeal, and only within 10 business days: that is, in the month of the notice or of the Superintendent's decision.
+ * Outgoing messages can't be appealed; they are reviewed automatically.
+ */
+export function appealRejection(g: Game, id: number): Game {
+  const r = g.rejections.find((x) => x.id === id);
+  if (g.phase !== 'mail' || !r || r.dir !== 'in' || r.kind !== 'rejected') return g;
+  const first = r.stage === 'none' && r.noticed === g.m;
+  const second = r.stage === 'superintendent' && r.status === 'upheld' && r.decidedAt === g.m;
+  if (!first && !second) return g;
+  const s = clone(g);
+  const x = s.rejections.find((y) => y.id === id)!;
+  x.stage = first ? 'superintendent' : 'hq';
+  x.status = 'pending';
+  x.decide = s.m + 1; // 10 business days to the Superintendent; 20 to Headquarters
+  s.lines = [...s.lines, first
+    ? `You appeal to the Superintendent: the message from ${x.who} should be delivered.`
+    : `You appeal to the Headquarters Correctional Manager. Their decision will be final.`];
+  return s;
+}
+
+function resolveRejections(s: Game) {
+  for (const r of s.rejections) {
+    if (r.status !== 'pending' || (r.decide ?? 0) > s.m || r.stage === 'none') continue;
+    r.decidedAt = s.m;
+    const level = r.stage as 'superintendent' | 'hq';
+    if (next(s) < OVERTURN[level]) {
+      r.status = 'overturned';
+      if (r.dir === 'in') {
+        s.inbox.push({ m: s.m, from: r.who, subject: r.subject, text: r.text, slip: r.slip });
+        L(s, `The rejection is overturned. The message from ${r.who} is delivered, ${s.m - r.m} months after they wrote it.`);
+      } else if (s.ties.some((t) => t.id === r.to && tieActive(s, t))) {
+        s.outbox.push({ to: r.to, who: r.who, topic: r.topic, subject: r.subject, m: r.m, arrive: s.m + 1, late: true, blank: isBlank(r.text) });
+        L(s, `On review, the rejection of your message to ${r.who} is overturned. It goes out ${s.m - r.m} months after you wrote it.`);
+      } else L(s, `On review, the rejection of your message to ${r.who} is overturned. There is no one left to read it.`);
+      continue;
+    }
+    r.status = 'upheld';
+    if (r.dir === 'out' && level === 'superintendent') {
+      // upheld rejections of outgoing messages go to Headquarters on their own: 30 business days for electronic messages
+      r.stage = 'hq';
+      r.status = 'pending';
+      r.decide = s.m + 2;
+      L(s, `The Superintendent upholds the rejection of your message to ${r.who}. It goes to Headquarters for review. You don't have to do anything. You can't do anything.`);
+    } else if (r.dir === 'out') {
+      L(s, `Headquarters upholds the rejection of your message to ${r.who}. It will be kept on file for two years and then destroyed. It will not be returned to you.`);
+    } else if (level === 'superintendent') {
+      L(s, `The Superintendent upholds the rejection of the message from ${r.who}. You may appeal to Headquarters within 10 business days.`);
+    } else {
+      L(s, `Headquarters upholds the rejection of the message from ${r.who}. The decision is final. You have 30 days to arrange its disposal, or it will be destroyed.`);
+    }
+  }
+}
+const subjectOf = (topic: string) => TOPICS.find((x) => x.id === topic)?.subject ?? topic;
+
+/** Replies arrive a month after you write. They are written then, from what is true then. */
+function deliverMessages(s: Game) {
+  resolveRejections(s);
+  if (s.mo.noMessages) {
+    for (const o of s.outbox) if (o.arrive <= s.m) o.arrive = s.m + 1;
+    return; // the kiosk is down: nothing in, nothing out
+  }
+  const due = s.outbox.filter((o) => o.arrive <= s.m);
+  s.outbox = s.outbox.filter((o) => o.arrive > s.m);
+  for (const o of due) {
+    const tie = s.ties.find((t) => t.id === o.to && tieActive(s, t));
+    if (!tie) continue; // they're gone. No reply, and no one says why.
+    const ctx = replyContext(s, tie, o.late);
+    if (ctx && o.blank) {
+      ctx.blank = true;
+      ctx.warm = false; // they answer the way they were written to
+    }
+    const reply = ctx && compose(ctx, o.topic as Topic, () => next(s));
+    if (!reply) continue;
+    if (reply.slip) slipConsequence(s, reply.slip, tie.who); // staff read it, delivered or not
+    if (next(s) < INCOMING_REJECT_CHANCE) {
+      s.rejections.push({
+        id: s.rejections.length, dir: 'in', kind: 'rejected', m: s.m, noticed: s.m, to: tie.id, who: tie.who, topic: o.topic,
+        subject: `Re: ${o.subject}`, text: reply.text, reason: REJECT_REASONS[Math.floor(next(s) * REJECT_REASONS.length)],
+        stage: 'none', slip: reply.slip
+      });
+      continue;
+    }
+    s.inbox.push({ m: s.m, from: tie.who, subject: `Re: ${o.subject}`, text: reply.text, slip: reply.slip });
+  }
+}
+
+/**
+ * Send this month's messages. Each is to someone, with a subject line; your own words are optional. A plain string
+ * is a message to the person closest to you, about nothing in particular.
+ */
+export function submitLetters(g: Game, msgs: (string | OutMsg)[]): Game {
   if (g.phase !== 'mail' || g.visitPending) return g;
   const s = clone(g);
   s.lines = [];
-  const notebook = !primaryTie(s);
+  const primary = primaryTie(s);
+  const notebook = !primary;
   const restricted = s.commsUntil >= s.m;
-  // Mail is read. Staff may delay a message a month, or hold it for good.
-  const out = lines.map((t) => t.trim()).filter(Boolean).map((text) => {
-    if (notebook) return { text, status: 'sent' as const };
-    if (s.mo.noMessages || restricted) return { text, status: 'held' as const };
-    if (s.mo.delayMessages) return { text, status: 'delayed' as const };
-    const r = next(s);
-    const pHeld = 0.06 + (SENSITIVE.test(text) ? 0.3 : 0);
-    if (r < pHeld) return { text, status: 'held' as const };
-    if (r < pHeld + 0.1) return { text, status: 'delayed' as const };
-    return { text, status: 'sent' as const };
-  });
+  const items = msgs.map((x) => (typeof x === 'string' ? { to: primary?.id ?? '', topic: 'checkin', text: x } : x));
+  const out: Letter['lines'] = [];
+  for (const item of items) {
+    const text = item.text.trim().slice(0, MESSAGE_LIMIT);
+    if (notebook) {
+      if (text) out.push({ text, status: 'sent' });
+      continue;
+    }
+    const tie = s.ties.find((t) => t.id === item.to && tieActive(s, t));
+    if (!tie) continue;
+    const subject = subjectOf(item.topic);
+    const line = { text, status: 'sent' as Letter['lines'][number]['status'], to: tie.who, subject };
+    const hold = (kind: 'rejected' | 'restricted', reason: string) => {
+      line.status = 'held';
+      out.push(line);
+      // the notice reaches you by the next time you're at the tablet; a rejection goes to the Superintendent on its own
+      s.rejections.push({
+        id: s.rejections.length, dir: 'out', kind, m: s.m, noticed: s.m + 1, to: tie.id, who: tie.who, topic: item.topic, subject, text, reason,
+        stage: kind === 'rejected' ? 'superintendent' : 'none', status: kind === 'rejected' ? 'pending' : undefined,
+        decide: kind === 'rejected' ? s.m + 1 : undefined
+      });
+    };
+    if (restricted) {
+      hold('restricted', 'Your electronic messaging is restricted by a disciplinary sanction');
+      continue;
+    }
+    if (next(s) < REJECT_CHANCE) {
+      hold('rejected', REJECT_REASONS[Math.floor(next(s) * REJECT_REASONS.length)]);
+      continue;
+    }
+    // a word on the list, or a long message, sits in review for a week or more. Nobody tells you.
+    const flagged = flaggedWords(s.facilityId, text);
+    const late = flagged.length > 0 || text.length > LONG_MESSAGE || s.mo.delayMessages || s.mo.noMessages;
+    if (late) line.status = 'delayed';
+    out.push({ ...line, flagged: flagged.length ? flagged : undefined });
+    const blank = isBlank(text);
+    s.outbox.push({ to: tie.id, who: tie.who, topic: item.topic, subject, m: s.m, arrive: s.m + (s.mo.delayMessages || s.mo.noMessages ? 2 : 1), late, blank });
+    if (blank) {
+      tie.strain = (tie.strain ?? 0) + 1;
+      L(s, `You send ${tie.who} a subject line and almost nothing else.`);
+      if (tie.strain >= 2) {
+        tie.strain = 0;
+        tieOps(s, [{ id: tie.id, delta: -1, why: `${cap(tie.who)} has stopped expecting much from your messages.` }]);
+      }
+    }
+  }
   s.letters.push({ m: s.m, notebook, lines: out });
+  accrueRoutine(s, out.some((l) => l.status !== 'held' && !isBlank(l.text)));
   s.extraLines = 0;
   if (s.ending === 'released') {
     if (s.flags.promise_date && s.m > s.sentence - s.maxBoxes) addSupport(s, -1);
     if (s.flags.promise_efv && s.efv.done === 0) addSupport(s, -2);
-    s.phase = 'over';
+    s.release = { step: 0, picks: {} };
+    s.phase = 'release';
     return s;
   }
   s.hurt = false;
   delete s.flags.marked;
+  delete s.flags.fresh_ink;
   s.contraband = Math.max(0, s.contraband - 1);
   if (s.contraband === 0) delete s.flags.cell_package;
   s.m += 1;
   startMonth(s);
+  return s;
+}
+
+/* ------------------------------------------------------------------ */
+/* The release act: from the last message to the gate                  */
+/* ------------------------------------------------------------------ */
+
+export interface ReleaseCard {
+  title: string;
+  text: string;
+  choices: { id: string; label: string }[];
+}
+
+export const RELEASE_STEPS = 4;
+
+/** Who is waiting, if anyone: someone who could visit, then anyone at all. */
+function waiting(s: Game) {
+  const adults = activeTies(s).filter((t) => !t.minor);
+  return { meet: visitingTies(s).find((t) => !t.minor), someone: adults[0] };
+}
+
+export function releaseCard(g: Game): ReleaseCard | null {
+  if (g.phase !== 'release' || !g.release || !g.char) return null;
+  const lvl = routineLevel(g);
+  const { meet, someone } = waiting(g);
+  const gotOut = activeTies(g).find((t) => t.id.startsWith('got_out'));
+  switch (g.release.step) {
+    case 0:
+      return {
+        title: 'Release Day',
+        text: [
+          `They call ${lvl >= 3 ? 'your number' : 'your name'}. You sign for your property, item by item, against a record with ${g.char.docNumber} on every line.`,
+          someone && someone.visits
+            ? `The clothes ${someone.who} sent are folded on the counter. They fit differently than you remember.`
+            : 'State-issued release clothes. They fit like a uniform, because they are one.',
+          lvl >= 2 ? `At the last door you stop and wait to be buzzed through. The officer says, "It's open. Go."` : 'The last door opens, and you go through it.'
+        ].join(' '),
+        choices: [{ id: 'walk', label: 'Walk out' }]
+      };
+    case 1:
+      if (meet) return { title: 'The Gate', text: `${cap(meet.who)} is at the gate. Nobody says anything for a second. Then everyone does.`, choices: [{ id: 'car', label: `Go with ${meet.who}` }] };
+      return {
+        title: 'The Gate',
+        text: someone
+          ? `Nobody at the gate. ${cap(someone.who)} couldn't come. A bus schedule is taped inside the gatehouse window, and what was left on your books is in an envelope in your hand.`
+          : 'Nobody at the gate. A bus schedule is taped inside the gatehouse window, and what was left on your books is in an envelope in your hand.',
+        choices: [{ id: 'bus', label: 'Get on the bus' }]
+      };
+    case 2: {
+      const choices: ReleaseCard['choices'] = [];
+      if (someone) choices.push({ id: 'with', label: `Stay with ${someone.who}` });
+      if (gotOut) choices.push({ id: 'got_out', label: 'Call the man who got out' });
+      choices.push({ id: 'shelter', label: 'Find a shelter bed' }, { id: 'bus_night', label: 'Ride the bus until morning' });
+      return {
+        title: 'The First Night',
+        text: `Somewhere to sleep, and nobody counting you.${lvl >= 3 ? ' You will wake at 5:30 for a count that does not come.' : ''}`,
+        choices
+      };
+    }
+    case 3:
+      return {
+        title: 'The First Week',
+        text: [
+          'An ID. A phone. A bank that will take you. A job that will take the box you have to check.',
+          lvl >= 2 ? 'You eat fast. You sit with your back to the wall. In the grocery store you stand in front of the cereal for a long time, because there are too many.' : 'Everything is louder than you remember, and faster.'
+        ].join(' '),
+        choices: [{ id: 'go', label: 'Keep going' }]
+      };
+  }
+  return null;
+}
+
+export function advanceRelease(g: Game, choiceId: string): Game {
+  const card = releaseCard(g);
+  const pick = card?.choices.find((c) => c.id === choiceId);
+  if (!card || !pick) return g;
+  const s = clone(g);
+  s.release!.picks[card.title] = pick.label;
+  s.release!.step += 1;
+  if (s.release!.step >= RELEASE_STEPS) s.phase = 'over';
   return s;
 }
 
@@ -2188,11 +2752,13 @@ export function ledgerRows(s: Game): LedgerRow[] {
 }
 
 /** The sentencing ledger: lay every Background side by side and compare the time. */
-export function sentencingRows() {
+/** Every background, offered the same deal on the same charge: what the grid gives each of them. */
+export function sentencingRows(chargeId: string) {
   const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+  const rows = BACKGROUNDS.map((b) => ({ ...b, months: sentenceFor(chargeId, b.score, 'deal', b.case.map((c) => c.bad)).months }));
   return {
-    rows: BACKGROUNDS,
-    white: avg(BACKGROUNDS.filter((b) => b.ethnicity === 'White').map((b) => b.sentence)),
-    others: avg(BACKGROUNDS.filter((b) => b.ethnicity !== 'White').map((b) => b.sentence))
+    rows,
+    white: avg(rows.filter((b) => b.ethnicity === 'White').map((b) => b.months)),
+    others: avg(rows.filter((b) => b.ethnicity !== 'White').map((b) => b.months))
   };
 }

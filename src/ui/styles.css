@@ -124,3 +124,6 @@ tr.you td { color: var(--amber); font-weight: 700; }
 .splash { text-align: center; padding: 28px 8px 8px; display: flex; flex-direction: column; gap: 10px; }
 .splash .bars { display: flex; justify-content: center; gap: 10px; height: 70px; margin-bottom: 4px; }
 .splash .bars i { width: 8px; background: var(--dim); border-radius: 2px; }
+
+.compose { border-top: 1px solid var(--line, #333); padding-top: 10px; margin-top: 10px; }
+.compose select { margin-left: 4px; max-width: 100%; }

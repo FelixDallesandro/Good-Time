@@ -4,7 +4,7 @@ import { GameView } from '../src/ui/App';
 import { careful, randomPolicy } from '../src/engine/autoplay';
 import { CHARGES, BACKGROUNDS, OUTSIDES } from '../src/engine/content';
 import {
-  availableMoves, appeal, applyEfv, beginSentence, choose, chooseVisit, continueResult, draftPick, newGame, playMove, plead, playScene,
+  advanceRelease, availableMoves, appeal, applyEfv, releaseCard, beginSentence, choose, chooseVisit, continueResult, draftPick, newGame, playMove, plead, playScene,
   rollEyes, submitLetters, toMail
 } from '../src/engine/engine';
 import type { Game } from '../src/engine/types';
@@ -49,13 +49,16 @@ describe('every screen renders', () => {
               s = toMail(s);
             }
           }
-          else if (s.phase === 'mail') s = s.visitPending ? chooseVisit(s, 'steady') : submitLetters(s, ['Hello.']);
-          else break;
+          else if (s.phase === 'mail') s = s.visitPending ? chooseVisit(s, 'steady') : submitLetters(s, ['Hello from in here.']);
+          else if (s.phase === 'release') {
+            const c = releaseCard(s)!;
+            s = advanceRelease(s, c.choices[(guard + seed) % c.choices.length].id);
+          } else break;
         }
         expect(s.phase).toBe('over');
         expect(render(s)).toContain('The ledger');
       }
     }
-    for (const p of ['card', 'result', 'hub', 'eyes', 'mail']) expect(seen.has(p)).toBe(true);
+    for (const p of ['card', 'result', 'hub', 'eyes', 'mail', 'release']) expect(seen.has(p)).toBe(true);
   });
 });

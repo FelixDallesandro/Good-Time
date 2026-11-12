@@ -1,0 +1,2136 @@
+{
+  "version": 1,
+  "voices": {
+    "mother": {
+      "who": "your mother",
+      "visits": true,
+      "kids": false,
+      "late": [
+        {
+          "text": "I just got your message. It says you sent it last week. I don't know what they do with them in there."
+        },
+        {
+          "text": "Your message came days after you sent it. I thought something had happened."
+        }
+      ],
+      "news": [
+        {
+          "text": "Your aunt asked about you after church. I told her you're doing your time and doing it right.",
+          "when": {
+            "lostTime": false,
+            "inSeg": false
+          }
+        },
+        {
+          "text": "The car's making that noise again. Don't worry about it."
+        },
+        {
+          "text": "I picked up extra shifts. It keeps me busy."
+        },
+        {
+          "text": "I moved some things into storage. Long story. I'll tell you when you're home.",
+          "when": {
+            "warm": true
+          }
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Love, Mom"
+        },
+        {
+          "text": "I love you. Eat something. Mom"
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Good to hear from you. I check that tablet every night before bed, even when I know there won't be anything."
+          },
+          {
+            "text": "Thank you for writing. It's been a while. I won't make a thing of it.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "Nobody at the facility would tell me anything when I called. Just tell me you're all right. That's all I need.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "The drive home felt shorter than usual. You looked thinner. I'll bring quarters for the machines next time.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "I'm so sorry about Saturday. I'll tell you on the phone. I'll be there next time if I have to walk.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I'll come up the Saturday after next, same as always. Tell me if anything changes on your end.",
+            "when": {
+              "canVisit": true
+            }
+          },
+          {
+            "text": "I mailed the visitor application. They said it takes time. I'm waiting like everybody else.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "An hour, and I couldn't even hug you. I didn't know what to do with my hands.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I put a little on your books Friday. Don't ask where it came from. Buy yourself something real to eat."
+          },
+          {
+            "text": "I'll do what I can. It won't be much. Things are tight right now, but don't you worry about that."
+          },
+          {
+            "text": "I can't this month. I'm sorry. I'll try in a few weeks.",
+            "when": {
+              "warm": false
+            }
+          }
+        ],
+        "trouble": [
+          {
+            "text": "What happened? Don't tell me it was nothing. You said that when you were fifteen too."
+          },
+          {
+            "text": "They took time off your release, didn't they. You can tell me. I'd rather know than guess.",
+            "when": {
+              "lostTime": true
+            }
+          },
+          {
+            "text": "I read it twice. I don't know what to say anymore. I'm still here.",
+            "when": {
+              "warm": false
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "Where did they move you? I kept writing and nothing came back. I kept writing anyway.",
+            "when": {
+              "visited": false
+            }
+          },
+          {
+            "text": "Someone at the facility said you were \"off the unit.\" That's all they would say. Are you safe?",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          },
+          {
+            "text": "I saw where they have you. I'm not going to pretend I didn't. Tell me what you need.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          },
+          {
+            "text": "You looked better on Saturday than you've sounded in your messages. Don't go back there.",
+            "when": {
+              "visited": true,
+              "inSeg": false
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "Everyone's the same. Your cousin got a new job. The neighbors still ask about you, and I still don't know what to say."
+          },
+          {
+            "text": "Your aunt sends her love. She means it this time."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. I wrote it on the calendar in pen."
+          },
+          {
+            "text": "I'm counting too. I just don't say it out loud anymore.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "I washed the sheets on your old bed. I know it's early. Let me have it.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "You don't have to keep saying sorry. Just come home and be here. That's the sorry I want."
+          },
+          {
+            "text": "I know you are. Sorry doesn't pay for anything, but I know you are.",
+            "when": {
+              "warm": false
+            }
+          }
+        ]
+      },
+      "slips": {
+        "ink": [
+          {
+            "text": "Was that tattoo on your arm new? I didn't want to ask in front of the officer."
+          }
+        ],
+        "phone": [
+          {
+            "text": "Is that number you called me from last week still good? I tried calling it back and nobody answered."
+          }
+        ],
+        "efv": [
+          {
+            "text": "Should I bring the new shoes to the family visit? The ones you said you needed?"
+          }
+        ],
+        "money": [
+          {
+            "text": "I sent the money to that name you gave me, like you asked. Tell me it got where it needed to go."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "You sent me a subject line. Just the subject. I read it anyway, and then I sat there."
+        }
+      ]
+    },
+    "partner": {
+      "who": "your partner",
+      "visits": true,
+      "kids": true,
+      "late": [
+        {
+          "text": "Your message just came through. It's dated last week. He kept asking if you wrote."
+        },
+        {
+          "text": "I didn't get this until days later. I thought you were mad at me."
+        }
+      ],
+      "news": [
+        {
+          "text": "He lost his first tooth. He wants to mail it to you. I told him the post office doesn't take teeth."
+        },
+        {
+          "text": "Work cut my hours again."
+        },
+        {
+          "text": "He drew you a truck, because you \"drive trucks for work.\" I didn't correct him."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Love you."
+        },
+        {
+          "text": "Hang in there."
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Hey you. Long day here. He finally fell asleep on the couch, so I'm writing this with one hand."
+          },
+          {
+            "text": "Got your message. Things are busy. I'll write more when I can.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "I called the facility and got nowhere. Write me back the second you can.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "He talked about the vending machine sandwich the whole ride home. Said it was the best one he's ever had.",
+            "when": {
+              "visited": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "It was good to see you. Just us this time. I'm still not sure that was the right call.",
+            "when": {
+              "visited": true,
+              "withKids": false
+            }
+          },
+          {
+            "text": "I'm sorry about Saturday. I'll explain on the phone. He cried in the car. I'm not telling you so you'll feel bad. You should just know.",
+            "when": {
+              "noShow": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "I'm sorry about Saturday. I'll explain on the phone.",
+            "when": {
+              "noShow": true,
+              "withKids": false
+            }
+          },
+          {
+            "text": "We'll come up next weekend if I can get the car back. He wants to show you he can whistle.",
+            "when": {
+              "canVisit": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "I'll come up next weekend if I can get the car back. Just me, like we said.",
+            "when": {
+              "canVisit": true,
+              "withKids": false
+            }
+          },
+          {
+            "text": "Still waiting on the approval letter. He asks every day if it came.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "He asked why he couldn't sit on your lap. I didn't have an answer that wasn't a lie.",
+            "when": {
+              "visited": true,
+              "inSeg": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "An hour, and I couldn't touch you. I don't know which is worse, that or not coming.",
+            "when": {
+              "visited": true,
+              "inSeg": true,
+              "withKids": false
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I'll put twenty on when I get paid. That's what I can do right now."
+          },
+          {
+            "text": "I can't right now. It's your books or his shoes.",
+            "when": {
+              "warm": false
+            }
+          }
+        ],
+        "trouble": [
+          {
+            "text": "What did you do? Please don't make this longer. He's counting days too, even if he doesn't know what he's counting."
+          },
+          {
+            "text": "How much longer? Just give me the number. I need to know what to tell him.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "You disappeared for weeks. Where were you? I told him your phone broke.",
+            "when": {
+              "visited": false
+            }
+          },
+          {
+            "text": "Seeing you there scared me. Tell me it's almost over.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          },
+          {
+            "text": "You looked like yourself again on Saturday. Mostly. Don't go back there.",
+            "when": {
+              "visited": true,
+              "inSeg": false
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "He's reading now. Short words. He sounded out \"stop\" on a sign and was so proud of himself."
+          },
+          {
+            "text": "He's okay. He asked why you're always at work on his birthday. I said you'd make the next one."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. I keep doing the math. He keeps asking when you get to stop working."
+          },
+          {
+            "text": "Okay. We'll figure it out when it gets here. One thing at a time.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "We need to talk about what we tell him. Soon. Before you're standing in the kitchen.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "I know. I'm not mad tonight. Ask me tomorrow."
+          },
+          {
+            "text": "I'm tired of sorry. I need you to not need to say it.",
+            "when": {
+              "warm": false
+            }
+          }
+        ]
+      },
+      "kidsAtHome": true,
+      "slips": {
+        "ink": [
+          {
+            "text": "Was that tattoo new? I kept looking at it the whole visit."
+          }
+        ],
+        "phone": [
+          {
+            "text": "Can you call me from that other number again? It was so good to hear you at night."
+          }
+        ],
+        "efv": [
+          {
+            "text": "Should I pack those new shoes for you for the family visit? He picked them out."
+          }
+        ],
+        "money": [
+          {
+            "text": "I sent twenty to that guy's cousin like you said. Why couldn't it just go on your books?"
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "You sent a subject and nothing else. He asked what you said. I made something up."
+        }
+      ]
+    },
+    "grandmother": {
+      "who": "your grandmother",
+      "visits": false,
+      "kids": false,
+      "late": [
+        {
+          "text": "Your message came late. I worried, but I kept the porch light on anyway."
+        },
+        {
+          "text": "They held your message somewhere a while. I don't know why they need to read what you write your grandmother."
+        }
+      ],
+      "news": [
+        {
+          "text": "The tomatoes came in too fast this year. I gave half to the church."
+        },
+        {
+          "text": "My hands are bad in the mornings now. I write slower, but I still write."
+        },
+        {
+          "text": "The neighbor boy mows the lawn. He does it crooked, like you did."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "All my love, Grandma"
+        },
+        {
+          "text": "I pray for you every night. Grandma"
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "I was so glad to see your name on the screen. I read it at the kitchen table twice."
+          },
+          {
+            "text": "I didn't hear from you, and the lady on the phone wouldn't tell me anything. Write when you can, even one line.",
+            "when": {
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I sent what I could. It isn't much. Buy what you need to keep writing me."
+          },
+          {
+            "text": "I'm on a fixed income, you know that. But I'll find a little. I always do."
+          }
+        ],
+        "trouble": [
+          {
+            "text": "I won't scold you. I raised you, I know you. Keep your head down, like your grandfather used to say."
+          },
+          {
+            "text": "I know there's more you aren't telling me. That's all right. I knew before you told me the first time.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "You went quiet and I knew something happened. You don't have to say what. I just need to know you're eating."
+          }
+        ],
+        "family": [
+          {
+            "text": "Everyone's fine. Your cousins don't call me enough. Don't you be like them when you get out."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. I'm going to try to still be here when you get out. That's a joke. Mostly."
+          },
+          {
+            "text": "I'm making up your room. The quilt's on the bed already.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "There's nothing you could do that would make me stop loving you. I raised you. I'd know."
+          }
+        ]
+      },
+      "slips": {
+        "phone": [
+          {
+            "text": "Was that you who called the other night? The number was strange. It was so good to hear your voice."
+          }
+        ],
+        "money": [
+          {
+            "text": "I sent the money to the man you told me about. I hope he's a good friend to you."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "Your message came with nothing in it. I don't know how that machine works. Write me words, even three."
+        }
+      ]
+    },
+    "ex": {
+      "who": "your ex",
+      "visits": true,
+      "kids": true,
+      "late": [
+        {
+          "text": "Your message came late. She checks the tablet like it's Christmas, so next time send it earlier."
+        },
+        {
+          "text": "Got this days after you sent it. Not my fault."
+        }
+      ],
+      "news": [
+        {
+          "text": "She got a part in the school play. A tree. She's very serious about it."
+        },
+        {
+          "text": "Her teacher says her reading's better."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Talk later."
+        },
+        {
+          "text": "Take care."
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Got it. She's at practice. I'll show her when she's home."
+          },
+          {
+            "text": "She smiled when I told her you wrote. Just so you know.",
+            "when": {
+              "warm": true
+            }
+          },
+          {
+            "text": "You stopped writing and she noticed. Whatever's going on, don't let her hear it from somebody else.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "She talked about the visit all week. Thanks for keeping it about her.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "I'm not getting into Saturday in here. She's fine. She's used to waiting.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I can bring her the second Saturday. Not the first. I work.",
+            "when": {
+              "canVisit": true
+            }
+          },
+          {
+            "text": "I sent in the paperwork. It's on them now.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "She asked why she couldn't hug you. I told her it's the rules. She said the rules are stupid. She's not wrong.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I'm not putting money on your books. I'm raising your daughter. Ask your mom."
+          },
+          {
+            "text": "I can't do money. I'll print some pictures of her for you instead.",
+            "when": {
+              "warm": true
+            }
+          }
+        ],
+        "trouble": [
+          {
+            "text": "I don't need the details. I need you to stop making her wait longer."
+          },
+          {
+            "text": "Great. More time. What am I supposed to tell her?",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "Your mom said you were \"moved.\" I don't want to know. Just don't let it happen again while she's counting."
+          },
+          {
+            "text": "I don't want her seeing you like that again. Get yourself out of there.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "She's taller. She asked again if you're a bad person. I said no. Don't make me a liar."
+          },
+          {
+            "text": "She's good. She wants to know if you have a window."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. We'll talk about the schedule when you're out. Not before."
+          },
+          {
+            "text": "When you get out, we do this slow. She needs slow.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "I don't need an apology. She might, one day. Save it for her."
+          },
+          {
+            "text": "Okay. I hear you.",
+            "when": {
+              "warm": true
+            }
+          }
+        ]
+      },
+      "kidsAtHome": true,
+      "slips": {
+        "ink": [
+          {
+            "text": "She noticed the new tattoo. She asked if it hurt. I didn't know what to tell her."
+          }
+        ],
+        "phone": [
+          {
+            "text": "Don't call me late from random numbers. If you want to talk, use the tablet."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "You sent an empty message. If you don't have anything to say, don't send anything."
+        }
+      ]
+    },
+    "brother": {
+      "who": "your brother",
+      "visits": false,
+      "kids": false,
+      "late": [
+        {
+          "text": "Your letter took the long way. You know how it is."
+        },
+        {
+          "text": "Got yours late. Somebody liked reading it."
+        }
+      ],
+      "news": [
+        {
+          "text": "Same here. Count, chow, count."
+        },
+        {
+          "text": "Moved cells. New guy snores like a truck."
+        },
+        {
+          "text": "Got a job in the kitchen. Don't laugh."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Stay up."
+        },
+        {
+          "text": "Head down, eyes open."
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Good to hear from you. It's quiet over here, which is how I like it."
+          },
+          {
+            "text": "Heard you went quiet. I'm not going to ask in here. You know why.",
+            "when": {
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I'd send something if I had it. You know I don't. Ask Mom, but go easy on her."
+          }
+        ],
+        "trouble": [
+          {
+            "text": "Don't put details in writing. You know better. Just tell me if it's handled."
+          },
+          {
+            "text": "Do your time. Don't let them add to it. They love adding to it.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "Been there. Count the walls, do push-ups, don't talk to the door. It ends."
+          }
+        ],
+        "family": [
+          {
+            "text": "Mom sounds tired when she writes. Call her if you can. I can't."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. Don't come back. I mean it."
+          },
+          {
+            "text": "When you walk out, don't look back at the fence. That's how you end up back inside it.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "Nothing to be sorry for between us. You know who should be in here. Let it go."
+          }
+        ]
+      },
+      "slips": {
+        "phone": [
+          {
+            "text": "Heard you had a line out at night. Careful."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "Got a blank one from you. Nothing to say is still something to say, I guess."
+        }
+      ]
+    },
+    "volunteer": {
+      "who": "the volunteer",
+      "visits": true,
+      "kids": false,
+      "late": [
+        {
+          "text": "{name}, your message reached me later than you sent it. I'm sorry for the wait."
+        },
+        {
+          "text": "It took a while to reach me. I'm glad it did."
+        }
+      ],
+      "news": [
+        {
+          "text": "Our group started a book drive for the library there. Tell me if any titles make it to you."
+        },
+        {
+          "text": "I'm helping at the food bank on Tuesdays now. It reminds me how much people carry."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Keeping you in my prayers."
+        },
+        {
+          "text": "Take care, {name}."
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "{name}, it was good to hear from you. I hope this week was gentler than the last."
+          },
+          {
+            "text": "I was told you were unavailable for a while. I'm here whenever you're able to write.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "Thank you for the visit. You talked more than last time. I noticed.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "I'm sorry I wasn't there this time. It wasn't for lack of wanting.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I'm planning to visit again this month if the schedule allows. Is there anything you'd like to talk about?",
+            "when": {
+              "canVisit": true
+            }
+          },
+          {
+            "text": "My visitor application is still in review. I'll keep checking.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "Thank you for seeing me, even like that. You looked tired. I'll keep coming.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I'm not able to put money on anyone's books. Our program doesn't allow it. I can send a list of free programs and books, if that would help."
+          }
+        ],
+        "trouble": [
+          {
+            "text": "Thank you for being honest with me. That's harder than it sounds in there. What do you think happened?"
+          },
+          {
+            "text": "I won't pretend that isn't hard news. It doesn't change what I think of you.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "Being alone that long is its own weight. If you want to write about it, I'll read every word."
+          },
+          {
+            "text": "I'm glad I came, even then. Write to me about it, if it helps.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "How is your family? You haven't mentioned them in a while. You don't have to, but I'm asking."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. Have you thought about the first week? Not the whole future, just the first week."
+          },
+          {
+            "text": "I've put together a list of places that help people in their first month out. I'll send it to you.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "You don't owe me an apology, {name}. But I hear you, and it matters that you said it."
+          }
+        ]
+      },
+      "slips": {
+        "ink": [
+          {
+            "text": "I noticed the new tattoo at our visit. I hope it means something good to you."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "{name}, your message came through with only a subject. I'm still here when you have the words."
+        }
+      ]
+    },
+    "father": {
+      "who": "your father",
+      "visits": true,
+      "kids": false,
+      "late": [
+        {
+          "text": "Got your message. Later than you sent it, looks like."
+        },
+        {
+          "text": "This came through days late. I don't know how that works."
+        }
+      ],
+      "news": [
+        {
+          "text": "Still at the same place. They keep saying they'll retire me."
+        },
+        {
+          "text": "Fixed the gutter. Took me three days."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Dad"
+        },
+        {
+          "text": "Take care. Dad"
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Got your message. I'm not much of a writer. I read it a couple of times, though."
+          },
+          {
+            "text": "Okay. I'm here.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "Nothing from you in a while. I figured. You don't have to explain.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "It was good to see your face. I didn't know what to say in there. Next time I'll try harder.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "About Saturday. I owe you an explanation, and I'll give it in person.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I'll come again. Tell me which Saturday works on your end.",
+            "when": {
+              "canVisit": true
+            }
+          },
+          {
+            "text": "Paperwork's in. They said wait.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "Couldn't shake your hand. Funny what you miss.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I put something on your books. Don't make a thing of it."
+          }
+        ],
+        "trouble": [
+          {
+            "text": "I'm not going to lecture you. I lost the right to do that a long time ago."
+          },
+          {
+            "text": "That's more time. I'm sorry. I know that's not enough of a word.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "I spent thirty days in a cell once, in the army, for something stupid. It isn't the same. But I know a little."
+          },
+          {
+            "text": "Saw where they're keeping you. Didn't like it. I won't say more in here.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "Not much to report. Your aunt asked about you. I said you were doing all right. I hope that's true."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. I could pick you up, if you want. You don't have to answer now."
+          },
+          {
+            "text": "I cleared out the spare room. It's yours if you want it, for as long as you need.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "I've got my own sorry to say. Let's do it face to face."
+          }
+        ]
+      },
+      "slips": {
+        "ink": [
+          {
+            "text": "That tattoo on your arm. New? Didn't look like something they'd let you have."
+          }
+        ],
+        "phone": [
+          {
+            "text": "You called me from a number I didn't know. Is that allowed?"
+          }
+        ],
+        "efv": [
+          {
+            "text": "I'll bring the shoes to the family visit, if they let me through with them."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "Got a message with nothing in it. I figured that was about right for us."
+        }
+      ]
+    },
+    "partner_moving": {
+      "who": "your partner",
+      "visits": true,
+      "kids": false,
+      "late": [
+        {
+          "text": "Sorry, just saw this. It says it came days ago."
+        },
+        {
+          "text": "Your message came late. I've been busy anyway."
+        }
+      ],
+      "news": [
+        {
+          "text": "Work's been crazy."
+        },
+        {
+          "text": "I moved some of your stuff into my sister's garage. It's safe there."
+        },
+        {
+          "text": "I've been going out more. Friends from work. It's nothing.",
+          "when": {
+            "warm": false
+          }
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "xo",
+          "when": {
+            "warm": true
+          }
+        },
+        {
+          "text": "Talk soon."
+        },
+        {
+          "text": "Take care of yourself.",
+          "when": {
+            "warm": false
+          }
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Hey. Sorry, it's been a week. Hope you're doing okay in there."
+          },
+          {
+            "text": "Hey you. I miss your voice. Call me when you can?",
+            "when": {
+              "warm": true
+            }
+          },
+          {
+            "text": "Hey. Got your message.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "Didn't hear from you for a while. Figured you were busy too.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "It was good seeing you. It's a long drive. I'll try to come again.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "I'm sorry about Saturday. Something came up. I should have told you.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I'll come up next month. I promise this time.",
+            "when": {
+              "canVisit": true,
+              "warm": true
+            }
+          },
+          {
+            "text": "I don't know if I can make it up there this month. Work.",
+            "when": {
+              "canVisit": true,
+              "warm": false
+            }
+          },
+          {
+            "text": "Still waiting to hear back on the visitor thing, I think.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "That was hard, not being able to touch you. I sat in the car a long time after.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I can't right now. Maybe ask your family?"
+          },
+          {
+            "text": "I'll put something on when I can. Things are tight.",
+            "when": {
+              "warm": true
+            }
+          }
+        ],
+        "trouble": [
+          {
+            "text": "Okay. I don't really know what to say to that."
+          },
+          {
+            "text": "Are you okay? Please just get through this.",
+            "when": {
+              "warm": true
+            }
+          },
+          {
+            "text": "So it's longer now? I'm trying to plan my life here.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "I didn't know they could just do that. Are you okay now?"
+          },
+          {
+            "text": "That sounds rough.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "I didn't know they could keep you like that. Is it over soon?",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "Everyone's fine, I think. I haven't really seen your family in a while."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. Okay. We should talk when it's closer."
+          },
+          {
+            "text": "{monthsText}. I've been thinking about it a lot.",
+            "when": {
+              "warm": true
+            }
+          },
+          {
+            "text": "We should talk before you get out. Like, really talk.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "I know. It's not just you. It's everything."
+          },
+          {
+            "text": "You don't have to be sorry. I just miss how things were.",
+            "when": {
+              "warm": true
+            }
+          }
+        ]
+      },
+      "coolsAfterMonth": 6,
+      "slips": {
+        "ink": [
+          {
+            "text": "New tattoo? That's different."
+          }
+        ],
+        "phone": [
+          {
+            "text": "Was that you calling at two in the morning from that number? Don't do that. I have work."
+          }
+        ],
+        "money": [
+          {
+            "text": "I sent it to that name like you said. That's the last time, okay?"
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "You just sent the subject? Okay."
+        }
+      ]
+    },
+    "friend": {
+      "who": "your best friend",
+      "visits": true,
+      "kids": false,
+      "late": [
+        {
+          "text": "Your message came through like a week late. They reading your mail to me?"
+        },
+        {
+          "text": "Just got this. Took its sweet time."
+        }
+      ],
+      "news": [
+        {
+          "text": "Same crew, same corner, same everything. You're not missing much."
+        },
+        {
+          "text": "Ran into your old manager. He asked about you."
+        },
+        {
+          "text": "Got a new car. Well, new to me."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Stay solid."
+        },
+        {
+          "text": "One day closer."
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "What's good. Nothing changes out here, which is good and bad."
+          },
+          {
+            "text": "You went ghost on me. Whatever it is, I'm still here.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "Good seeing you. You look stronger. Don't get too big in there.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "My bad on Saturday. Long story. I'll make it up to you.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I'll come through next visiting day. Tell me if you need anything.",
+            "when": {
+              "canVisit": true
+            }
+          },
+          {
+            "text": "Still waiting on them to approve me. Guess my record's not helping.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "No dap, no hug, nothing. Like visiting a fish tank. You hanging in?",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "Put something on your books today. Don't worry where it's from."
+          },
+          {
+            "text": "I'm short this month. Next one, for sure.",
+            "when": {
+              "warm": false
+            }
+          }
+        ],
+        "trouble": [
+          {
+            "text": "Keep your head down. You got people waiting on you."
+          },
+          {
+            "text": "That's more time? Don't let them keep you. Seriously.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "The hole? Damn. You good now? Write me something real when you can."
+          },
+          {
+            "text": "Saw you in there. That's no way to live. Hold on.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "Everybody's good. I check on your people when I can."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText} and you're out. We're getting food first. Real food."
+          },
+          {
+            "text": "I'll be at the gate. Don't even argue.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "Sorry for what? You'd do the same for me. You already did."
+          }
+        ]
+      },
+      "slips": {
+        "ink": [
+          {
+            "text": "Yo, that new tattoo is clean. Who did it?"
+          }
+        ],
+        "phone": [
+          {
+            "text": "Hit me again from that number. Late night's good."
+          }
+        ],
+        "money": [
+          {
+            "text": "Sent the money to your boy's people like you said. All good."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "You sent me a blank message, bro. You good?"
+        }
+      ]
+    },
+    "sister": {
+      "who": "your sister",
+      "visits": true,
+      "kids": true,
+      "late": [
+        {
+          "text": "This came days after you sent it. I almost wrote you something mean before it showed up."
+        },
+        {
+          "text": "Got it late. Of course."
+        }
+      ],
+      "news": [
+        {
+          "text": "The little one has an ear infection. Third one this year.",
+          "when": {
+            "withKids": true
+          }
+        },
+        {
+          "text": "Work moved me to graveyard. I sleep while they're at school.",
+          "when": {
+            "withKids": true
+          }
+        },
+        {
+          "text": "The oldest got a B in math. I didn't even help.",
+          "when": {
+            "withKids": true
+          }
+        },
+        {
+          "text": "Work moved me to graveyard. I sleep all day now, and I still can't sleep.",
+          "when": {
+            "withKids": false
+          }
+        },
+        {
+          "text": "The house is too quiet. I keep their room the way it was.",
+          "when": {
+            "withKids": false
+          }
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Love you. Go to sleep."
+        },
+        {
+          "text": "The kids say hi.",
+          "when": {
+            "withKids": true
+          }
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Got your message. Read it on my break. Everyone's alive. That's the update."
+          },
+          {
+            "text": "Got it. I'm too tired to write much.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "Two weeks and nothing. Are you okay or not? Just tell me.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          },
+          {
+            "text": "Two weeks and nothing. The kids asked. I said you were busy. Are you okay or not? Just tell me.",
+            "when": {
+              "inSeg": true,
+              "withKids": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "The kids talked about the visit for days. The little one wants to know why you can't come home with us.",
+            "when": {
+              "visited": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "It was good to see you. I didn't know what to do with my hands without the kids there.",
+            "when": {
+              "visited": true,
+              "withKids": false
+            }
+          },
+          {
+            "text": "About Saturday. I'm not doing this in a message. I'll explain on the phone.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I can bring them next month if I can get a Saturday off. No promises.",
+            "when": {
+              "canVisit": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "I'll come up next month if I can get a Saturday off. No promises.",
+            "when": {
+              "canVisit": true,
+              "withKids": false
+            }
+          },
+          {
+            "text": "Still waiting on the approval. I filled out the form twice because I messed up the first one.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "The kids didn't understand why they couldn't hug you. Neither did I.",
+            "when": {
+              "visited": true,
+              "inSeg": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "An hour, and I couldn't hug you. I didn't know that's how it would be.",
+            "when": {
+              "visited": true,
+              "inSeg": true,
+              "withKids": false
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I don't have it right now. I'm sorry. I really don't."
+          },
+          {
+            "text": "I don't have it right now. I'm sorry. Everything I have is stretched over them.",
+            "when": {
+              "withKids": true
+            }
+          },
+          {
+            "text": "I put ten on. That's what I've got. Don't buy junk with it.",
+            "when": {
+              "warm": true
+            }
+          }
+        ],
+        "trouble": [
+          {
+            "text": "Are you serious. Okay. What happened? Not the version for Mom."
+          },
+          {
+            "text": "How much longer? I need the real number.",
+            "when": {
+              "lostTime": true
+            }
+          },
+          {
+            "text": "How much longer? I need the real number. I'm planning their whole year around it.",
+            "when": {
+              "lostTime": true,
+              "withKids": true
+            }
+          },
+          {
+            "text": "I can't carry your trouble too. I'm sorry. I just can't.",
+            "when": {
+              "warm": false
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "You went quiet. Is it over? Don't put the details in writing. Just tell me if it's over.",
+            "when": {
+              "visited": false
+            }
+          },
+          {
+            "text": "I saw where they have you. Just tell me when it's over.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          },
+          {
+            "text": "You looked tired on Saturday, but you looked like you. Keep it that way.",
+            "when": {
+              "visited": true,
+              "inSeg": false
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "The kids are okay. They fight, they eat, they grow out of their shoes.",
+            "when": {
+              "withKids": true
+            }
+          },
+          {
+            "text": "The oldest asked if you're coming to the school thing. I said maybe. Don't make me a liar.",
+            "when": {
+              "withKids": true
+            }
+          },
+          {
+            "text": "The caseworker says they're doing fine. That's all she'll tell me. I hate that it's all she'll tell me.",
+            "when": {
+              "withKids": false
+            }
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. I'm not counting yet. I'll count when it's close."
+          },
+          {
+            "text": "We need to talk about where you're staying. Before you're out.",
+            "when": {
+              "nearRelease": true
+            }
+          },
+          {
+            "text": "We need to talk about where you're staying. And about the kids. Before you're out.",
+            "when": {
+              "nearRelease": true,
+              "withKids": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "I know. Me too. For all of it."
+          },
+          {
+            "text": "I know you mean it. I'm just tired.",
+            "when": {
+              "warm": false
+            }
+          },
+          {
+            "text": "Sorry doesn't pick them up from school. I know you mean it. I'm just tired.",
+            "when": {
+              "warm": false,
+              "withKids": true
+            }
+          }
+        ]
+      },
+      "kidsAtHome": false,
+      "slips": {
+        "ink": [
+          {
+            "text": "Was that tattoo new? You know Mom's going to see it."
+          }
+        ],
+        "phone": [
+          {
+            "text": "What was that number you called from? It came up unknown. Call me from it again."
+          }
+        ],
+        "efv": [
+          {
+            "text": "Do you want me to bring those shoes to the family visit, or will they take them at the door?"
+          }
+        ],
+        "money": [
+          {
+            "text": "I sent the forty to the person on that paper you gave me. Who is that, anyway?"
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "You sent me a subject line. That's it? I'm working doubles and you send me a subject line."
+        }
+      ]
+    },
+    "neighborhood": {
+      "who": "your old acquaintance",
+      "visits": true,
+      "kids": false,
+      "late": [
+        {
+          "text": "Got your message late. Didn't know they slow them down like that."
+        },
+        {
+          "text": "This came days after you wrote it, says here."
+        }
+      ],
+      "news": [
+        {
+          "text": "The old block's different now. They tore down the corner store."
+        },
+        {
+          "text": "Saw some of the old crowd. Not all of them made it."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Take it easy."
+        },
+        {
+          "text": "Hang tough."
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Good to hear back. Didn't know if you would."
+          },
+          {
+            "text": "Didn't hear from you a while. Hope you're alright.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "Wild being in there, even just for a visit. Good to see you, though.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "Sorry about the visit. Something came up.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I could come by some weekend if that's cool.",
+            "when": {
+              "canVisit": true
+            }
+          },
+          {
+            "text": "Still waiting on the visitor approval. Takes forever.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "Didn't know it'd be like that. Couldn't even shake your hand.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I can do a little, once. Don't make it a habit."
+          }
+        ],
+        "trouble": [
+          {
+            "text": "Damn. Keep your head down in there."
+          },
+          {
+            "text": "That sounds bad. Hope it doesn't add on.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "That's rough. Didn't know they still did that."
+          },
+          {
+            "text": "That place they had you in. Rough.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "Can't say I know much about your people these days. Haven't been around."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. That's not bad. Let me know when you're out."
+          },
+          {
+            "text": "Almost there. Call me when you're out.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "Nothing to apologize to me for. We were young."
+          }
+        ]
+      },
+      "slips": {
+        "phone": [
+          {
+            "text": "Was that a cell you called me on? I didn't know you could do that in there."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "Got your message. There was nothing in it."
+        }
+      ]
+    },
+    "got_out": {
+      "who": "the man who got out",
+      "visits": true,
+      "kids": false,
+      "late": [
+        {
+          "text": "Your message came late. They're reading it, you know that. Write accordingly."
+        },
+        {
+          "text": "Took a week to get here. Some things never change."
+        }
+      ],
+      "news": [
+        {
+          "text": "Got a job at a warehouse. Pays every two weeks. Felt strange at first, getting a check."
+        },
+        {
+          "text": "First time I went to a grocery store, I stood in the cereal aisle for ten minutes. Too many choices."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Keep your head up."
+        },
+        {
+          "text": "One day at a time."
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "Good to hear from you. Out here it's a different kind of hard. In there, just do the day in front of you."
+          },
+          {
+            "text": "You went quiet. I know what that usually means. Hope you're out of there.",
+            "when": {
+              "inSeg": true,
+              "visited": false
+            }
+          }
+        ],
+        "visit": [
+          {
+            "text": "Strange sitting on the other side of that table. Good to see you.",
+            "when": {
+              "visited": true
+            }
+          },
+          {
+            "text": "Sorry about visiting day. My PO had me jumping through hoops. I'll try again.",
+            "when": {
+              "noShow": true
+            }
+          },
+          {
+            "text": "I'll come through again when I can. My PO knows about it.",
+            "when": {
+              "canVisit": true
+            }
+          },
+          {
+            "text": "They're still checking me out. Somebody who's been inside waits longer. Figures.",
+            "when": {
+              "canVisit": false
+            }
+          },
+          {
+            "text": "No-contact. I remember those. You'll be back on the floor soon. Hold on.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I'll put a little on. Don't owe anybody in there. That's the real advice."
+          }
+        ],
+        "trouble": [
+          {
+            "text": "Don't let them build a file on you. Every write-up follows you out."
+          },
+          {
+            "text": "They'll keep adding if you let them. Walk away from it, even when it costs you.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "The hole messes with your head. Read anything you can get. Count something. It ends."
+          },
+          {
+            "text": "I saw the unit they've got you in. Do that time with your head, not your fists.",
+            "when": {
+              "visited": true,
+              "inSeg": true
+            }
+          }
+        ],
+        "family": [
+          {
+            "text": "Do you talk to your people? Do it now. It's harder after."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}. Start planning now: ID, a place to sleep, a phone. The first week is the hardest."
+          },
+          {
+            "text": "When you walk out, have somebody waiting. If nobody is, call me.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "Don't apologize to me. Apologize to whoever's still waiting on you. I never did, and I wish I had."
+          }
+        ]
+      },
+      "slips": {
+        "phone": [
+          {
+            "text": "Don't call me from that number again. You know better. They listen."
+          }
+        ],
+        "money": [
+          {
+            "text": "I sent what you asked to that name. Be careful with that."
+          }
+        ]
+      },
+      "blank": [
+        {
+          "text": "Blank message. I remember doing that. Don't let it get that way."
+        }
+      ]
+    },
+    "pen_pal": {
+      "who": "your pen pal",
+      "visits": false,
+      "kids": false,
+      "late": [
+        {
+          "text": "Your message came days after the date on it. Is that normal?"
+        },
+        {
+          "text": "Sorry for the slow reply. Yours took a while to arrive!"
+        }
+      ],
+      "news": [
+        {
+          "text": "I started a garden. Mostly I'm growing weeds."
+        },
+        {
+          "text": "My cat knocked my coffee onto the keyboard. She's not sorry."
+        }
+      ],
+      "signoffs": [
+        {
+          "text": "Your friend outside"
+        },
+        {
+          "text": "Write back soon!"
+        }
+      ],
+      "replies": {
+        "checkin": [
+          {
+            "text": "I always get a little nervous before I open your messages. In a good way."
+          },
+          {
+            "text": "I didn't hear from you for a while and got worried. I hope everything is okay.",
+            "when": {
+              "inSeg": true
+            }
+          }
+        ],
+        "money": [
+          {
+            "text": "I'm not able to send money, I'm sorry. I hope that's okay. I can keep writing, though."
+          }
+        ],
+        "trouble": [
+          {
+            "text": "That sounds really hard. I don't know much about how it works in there. Do you want to tell me?"
+          },
+          {
+            "text": "Does that mean more time? I'm sorry. That seems so unfair.",
+            "when": {
+              "lostTime": true
+            }
+          }
+        ],
+        "seg": [
+          {
+            "text": "I looked up what that means. I'm sorry. I hope it's over."
+          }
+        ],
+        "family": [
+          {
+            "text": "Do you have family who writes you? You don't have to answer that."
+          }
+        ],
+        "release": [
+          {
+            "text": "{monthsText}! What's the first thing you want to do?"
+          },
+          {
+            "text": "Almost there. I'm really happy for you.",
+            "when": {
+              "nearRelease": true
+            }
+          }
+        ],
+        "sorry": [
+          {
+            "text": "You don't have to apologize! I'm just glad we write."
+          }
+        ]
+      },
+      "slips": {},
+      "blank": [
+        {
+          "text": "Your message was empty. Did something go wrong? I hope you're okay."
+        }
+      ]
+    }
+  }
+}

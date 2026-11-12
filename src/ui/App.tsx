@@ -3,13 +3,16 @@ import {
   FACILITIES, background, charge, facility, failing, outside
 } from '../engine/content';
 import {
-  STATS, actOf, activeTies, appeal, applyEfv, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
+  STATS, actOf, activeTies, advanceRelease, chooseCourt, clock, refuseOffer, appeal, appealRejection, applyEfv, displayName, releaseCard, routineLevel, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
   conspFacts, continueResult, custodyScore, cutLeverage, denyRumor, draftPick, efvBlock, grooveCost, grooveLabel, ledgerRows, leanOn, letterSlots, lockReason,
   newGame, onSheet, payDebt, plead, playMove, playScene, preview, primaryTie, releaseMonth, rollEyes, sentencingRows, standIn, stayIn,
-  stopCounting, submitLetters, tieActive, toMail, visitingTies
+  stopCounting, submitLetters, tieActive, toMail, visitingTies, MESSAGE_LIMIT
 } from '../engine/engine';
+import { TOPICS, correspondents, topicsFor } from '../engine/replies';
 import { violation } from '../content/violations';
-import type { Choice, Game } from '../engine/types';
+import { SOURCES, WA_ALL, WA_BY_CUSTODY, WA_PRIOR, estimate, rateFor } from '../content/recidivism';
+import { CASES, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../content/sentencing';
+import type { Choice, Game, OutMsg } from '../engine/types';
 
 const SAVE = 'goodtime.save.v3';
 const SEEN = 'goodtime.notice.v1';
@@ -155,7 +158,8 @@ function Rules(p: { onBack: () => void }) {
     <div className="panel">
       <h2>The whole rulebook fits on one card</h2>
       <h3>Two tracks</h3>
-      <p><b>Calendar.</b> Your case sets your sentence, from 12 to 18 months. You don't see why; the ledger in the epilogue shows how your case compared. You also start with empty good-time boxes (3 to 5, depending on the facility). Each month without a serious violation fills one. You walk out at your sentence minus your filled boxes. A serious violation can take good time away for good: every 30 days taken is one box you can never fill.</p>
+      <p><b>Calendar.</b> Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high. Take the deal (a reduced charge at an agreed number), turn down the first offer and hope for a better one, or go to trial (the top of the range on everything charged). If there's someone to tell on, telling buys the bottom of the range, and it can come out later. Earned release can take up to a third off, never the time on a weapon enhancement. Each empty good-time box is a turn of earned release; each turn without a serious violation fills one. You walk out at your sentence minus your filled boxes. A serious violation can take good time for good. Every sentence plays at least 12 turns; long ones are compressed, and the clock shows the real months.</p>
+      <p><b>Treatment.</b> Everyone is assessed, and every assessment finds a substance use disorder that needs treatment. Late in your sentence, group comes around. Get terminated from the program and you serve to your max date, good time or not.</p>
       <p><b>Standing.</b> How the yard sees you, 0 to 5. Keeping the code raises it; breaking it lowers it. At 0 you are a target.</p>
       <p className="dim">The institution controls your Calendar. The yard controls your Standing. Almost every choice trades one for the other.</p>
       <h3>Support</h3>
@@ -168,10 +172,12 @@ function Rules(p: { onBack: () => void }) {
       <p><b>Serious</b> infractions go to a hearing. Plead guilty and the sanction is usually lighter, but you give up the appeal. Contest it and you will almost certainly lose. Sanctions follow DOC 460.050: good time by category, privileges, confinement, and mandatory sanctions like two years off the weight pile for a fight.</p>
       <p><b>Custody</b> follows a score (DOC 300.380). Every serious takes points off it: 20 for a Category A, 15 for an assault, 10 for other Category B, 5 for C or D. Each month without a serious adds a programming point. Every six months a Plan Change Review moves you one custody level at a time: below 40 is Close, 40 to 55 Medium, 56 and up Minimum. Lose 20 points in one review period and a review team looks at demoting you sooner. Sometimes the facility overrides the score either way and keeps you where you are.</p>
       <p><b>Administrative segregation</b> (DOC 320.200) takes you off the unit for up to thirty days. A fight always brings it. So can a riot or a demonstration. And a lieutenant can place anyone the facility sees as a threat, pending an investigation nobody explains.</p>
+      <h3>Routine</h3>
+      <p>Every month makes the place more ordinary. Lockdown, confinement, seg, and loss of privileges make it faster; a visit or a real message slows it. Nothing stops it. As it grows, your name gives way to your DOC number, some months are nothing but count, and some things you used to do stop occurring to you.</p>
       <h3>Who you become</h3>
       <p>The way you meet trouble sticks. Fight, tell, go to your car, or back down: repeat one and the yard learns it, and going against it costs Standing. Keep repeating it and the other ways close for good. A slow stretch without it can wear a habit down. A locked one almost never lets go.</p>
       <h3>A month</h3>
-      <p>Count card → your scenes → the Eyes and any hearings → visiting and messages. You write a sentence home. In the epilogue, your messages are read next to your public card.</p>
+      <p>Count card → your scenes → the Eyes and any hearings → visiting and messages. On the tablet you pick who to write and a subject, and you write to them. Send nothing but a subject and they notice. Replies come the next month, and staff read everything, both ways. In the epilogue, your messages are read next to your public card.</p>
       <h3>What to expect</h3>
       <p>Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
       <button className="primary" onClick={p.onBack}>Back</button>
@@ -237,7 +243,7 @@ function Hud(p: { g: Game; canRewind: boolean; countTime: () => void; onQuit: ()
     <div className="hud">
       <div className="hud-top">
         <div>
-          <b>Month {Math.min(g.m, g.sentence)}</b> <span className="dim small">· walk out month {release} · {cap(actOf(g) === 'short' ? 'short time' : actOf(g) === 'long' ? 'the long middle' : actOf(g) === 'yard' ? 'the yard' : 'intake')}</span>
+          <b>{displayName(g)}</b> <span className="dim small">·</span> <b>{cap(clock(g, Math.min(g.m, g.sentence)))}</b> <span className="dim small">· walk out {clock(g, release)} · {cap(actOf(g) === 'short' ? 'short time' : actOf(g) === 'long' ? 'the long middle' : actOf(g) === 'yard' ? 'the yard' : 'intake')}</span>
         </div>
         <div className="row" style={{ gap: 6 }}>
           <button className="small" onClick={p.onCards}>Cards</button>
@@ -296,11 +302,15 @@ export function GameView(p: { g: Game; act: Act; countTime: () => void; canRewin
       <>
         <h2>Intake</h2>
         <p className="dim">Your public card is read aloud. Your private card is yours alone.</p>
+        <Court g={g} act={act} />
         <CharacterCards g={g} />
-        <button className="primary" onClick={() => act(beginSentence)}>Begin your sentence</button>
+        <button className="primary" onClick={() => act(beginSentence)}>
+          {g.court?.path === 'trial' ? 'Go to trial and begin your sentence' : g.court?.talked ? 'Talk, take the deal, and begin your sentence' : 'Take the deal and begin your sentence'}
+        </button>
       </>
     );
   if (g.phase === 'over') return <Epilogue g={g} onAgain={p.onAgain} onQuit={p.onQuit} />;
+  if (g.phase === 'release') return <Release g={g} act={act} />;
 
   return (
     <>
@@ -414,7 +424,9 @@ function Hub({ g, act }: { g: Game; act: Act }) {
       <div className="panel">
         <h2>{done ? 'End of the month' : 'The tier'}</h2>
         <p className="dim">
-          {g.mo.seg
+          {g.mo.blank
+            ? 'The month passes. Count, chow, count. Nothing happens that you will remember.'
+            : g.mo.seg
             ? 'Administrative segregation. The month passes in a cell off the unit. Staff will still roll the Eyes on anything already written down.'
             : done
             ? 'Your scenes are done. Staff will roll the Eyes on anything that got written down.'
@@ -479,16 +491,6 @@ function Outside({ g, act }: { g: Game; act: Act }) {
   );
 }
 
-const LETTER_IDEAS = [
-  "I'm fine. Don't worry about the money.",
-  'They moved me to a quieter unit.',
-  'I think about home every day.',
-  "I'm keeping my head down.",
-  "I did something I'm not proud of.",
-  'Nothing to report. That is the point.',
-  "I'll be home sooner than they said.",
-  "Tell them I said hello."
-];
 
 function StopCounting({ g, act }: { g: Game; act: Act }) {
   if (g.flags.stopped) return null;
@@ -508,19 +510,67 @@ function StopCounting({ g, act }: { g: Game; act: Act }) {
 
 function Mail({ g, act }: { g: Game; act: Act }) {
   const slots = letterSlots(g);
+  const people = correspondents(g);
+  const notebook = !people.length;
   const [lines, setLines] = useState<string[]>(Array.from({ length: slots }, () => ''));
-  const to = primaryTie(g)?.to;
-  const notebook = !to;
+  const [msgs, setMsgs] = useState<OutMsg[]>(() =>
+    Array.from({ length: slots }, (_, i) => ({ to: people[i % Math.max(1, people.length)]?.id ?? '', topic: 'checkin', text: '' }))
+  );
   const set = (i: number, v: string) => setLines((a) => a.map((x, j) => (j === i ? v : x)));
+  const setMsg = (i: number, patch: Partial<OutMsg>) => setMsgs((a) => a.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const inbox = g.inbox.filter((x) => x.m === g.m);
+  const notices = g.rejections.filter((x) => x.noticed === g.m || x.decidedAt === g.m);
   return (
     <>
       <div className="panel">
         <h2>Visiting and messages</h2>
         <Lines lines={g.lines} />
+        {notices.map((x) => (
+          <div key={`n${x.id}`} className="letter">
+            <span className="small dim">{x.kind === 'rejected' ? 'Rejection Notice, DOC 05-525' : 'Notice'}</span>
+            <br />
+            {x.dir === 'out'
+              ? <>Your message of month {x.m} to {x.who}, "{x.subject}," was not sent. Reason: {x.reason}.</>
+              : <>A message to you from {x.who}, "{x.subject}," was rejected. Reason: {x.reason}.</>}
+            {x.dir === 'out' && x.status === 'pending' && (
+              <div className="small dim">Outgoing rejections are reviewed automatically: first the Superintendent, then Headquarters. There is nothing to appeal.</div>
+            )}
+            {x.dir === 'in' && x.stage === 'none' && x.noticed === g.m && (
+              <div><button className="small" onClick={() => act((s) => appealRejection(s, x.id))}>Appeal to the Superintendent</button></div>
+            )}
+            {x.dir === 'in' && x.stage === 'superintendent' && x.status === 'upheld' && x.decidedAt === g.m && (
+              <div><button className="small" onClick={() => act((s) => appealRejection(s, x.id))}>Appeal to Headquarters</button></div>
+            )}
+            {x.dir === 'in' && x.status === 'pending' && <div className="small dim">Appealed. A decision next month.</div>}
+          </div>
+        ))}
+        {inbox.length > 0 && (
+          <>
+            <h3>Messages in</h3>
+            {inbox.map((x, i) => (
+              <div key={i} className="letter">
+                <span className="small dim">From {x.from} · {x.subject}</span>
+                <br />
+                {x.text}
+              </div>
+            ))}
+          </>
+        )}
         {g.visitPending && (
           <>
             <h3>Your visit</h3>
+            {g.visitRisk && (
+              <p className="small">
+                {g.visitRisk === 'ink' ? 'Your ink is still fresh.' : 'You have marks from a fight nobody wrote up.'} They strip you out after every
+                visit. If the officer looks closely, it becomes a write-up: {g.visitRisk === 'ink' ? '710, unauthorized tattooing' : '505, fighting'}.
+              </p>
+            )}
             <div className="grid2 stack">
+              {g.visitRisk && (
+                <button className="choice" onClick={() => act((s) => chooseVisit(s, 'stayHome'))}>
+                  <b>Tell them to stay home this week</b><span className="dim small">No visit. You make up a reason.</span>
+                </button>
+              )}
               <button className="choice" onClick={() => act((s) => chooseVisit(s, 'money'))}><b>Money on your books</b><span className="dim small">+{g.support} store.</span></button>
               <button className="choice" onClick={() => act((s) => chooseVisit(s, 'steady'))}><b>Steady</b><span className="dim small">Pull one rumor. Someone outside still knows who you are.</span></button>
             </div>
@@ -528,29 +578,51 @@ function Mail({ g, act }: { g: Game; act: Act }) {
         )}
       </div>
       <div className="panel">
-        <h3>{notebook ? 'In your notebook' : `Dear ${to},`}</h3>
+        <h3>{notebook ? 'In your notebook' : 'The tablet'}</h3>
         <p className="dim small">
           {notebook
-            ? 'No one is waiting, so you write one line in a notebook no one reads, addressed to no one.'
+            ? 'No one is waiting, so you write in a notebook no one reads, addressed to no one.'
             : g.commsUntil >= g.m
-              ? 'Your messages are restricted by a sanction. You can write it. It will not go out.'
-              : 'One private sentence home. Staff read every message before it goes out, and may delay it or hold it. A message that mentions staff, the yard, or a grievance is the likeliest to be held. It stays face down until the epilogue.'}
-          {slots > 1 ? ` You may write ${slots} lines this month.` : ''}
+              ? 'Your messages are restricted by a sanction. You can write them. They will not go out.'
+              : 'Pick who, and a subject, and write to them. A subject with nothing under it is still a message, and they notice. Staff read every message. Some words put a message in review for a week or more, and nobody tells you which. Replies come next month.'}
+          {slots > 1 ? ` You can send ${slots} messages this month.` : ''}
         </p>
-        {lines.map((l, i) => (
-          <div key={i}>
-            <textarea value={l} placeholder="Write a sentence…" onChange={(e) => set(i, e.target.value)} />
-            {!notebook && (
-              <div className="row" style={{ marginTop: 6 }}>
-                {LETTER_IDEAS.slice(0, 4).map((idea) => (
-                  <button key={idea} className="small ghost" onClick={() => set(i, idea)}>{idea}</button>
-                ))}
+        {notebook
+          ? lines.map((l, i) => (
+            <textarea key={i} value={l} maxLength={MESSAGE_LIMIT} placeholder="Write something…" onChange={(e) => set(i, e.target.value)} />
+          ))
+          : msgs.map((msg, i) => {
+            const tie = people.find((t) => t.id === msg.to) ?? people[0];
+            const topics = topicsFor(g, tie);
+            const topic = topics.includes(msg.topic as never) ? msg.topic : topics[0];
+            return (
+              <div key={i} className="compose">
+                <div className="row">
+                  <label className="small">To{' '}
+                    <select value={tie.id} onChange={(e) => setMsg(i, { to: e.target.value })}>
+                      {people.map((t) => <option key={t.id} value={t.id}>{t.to}</option>)}
+                    </select>
+                  </label>
+                  <label className="small">Subject{' '}
+                    <select value={topic} onChange={(e) => setMsg(i, { topic: e.target.value })}>
+                      {topics.map((id) => <option key={id} value={id}>{TOPICS.find((x) => x.id === id)!.subject}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <textarea value={msg.text} maxLength={MESSAGE_LIMIT} placeholder={`Write to ${tie.to}…`} onChange={(e) => setMsg(i, { text: e.target.value })} />
               </div>
-            )}
-          </div>
-        ))}
-        <button className="primary" disabled={g.visitPending} onClick={() => act((s) => submitLetters(s, lines))}>
-          {g.visitPending ? 'Choose what to do with your visit first' : g.ending === 'released' ? 'Seal it. Walk out.' : 'Seal it and send it'}
+            );
+          })}
+        <button
+          className="primary"
+          disabled={g.visitPending}
+          onClick={() => act((s) => submitLetters(s, notebook ? lines : msgs.map((m) => {
+            const tie = people.find((t) => t.id === m.to) ?? people[0];
+            const topics = topicsFor(s, tie);
+            return { ...m, to: tie.id, topic: topics.includes(m.topic as never) ? m.topic : topics[0] };
+          })))}
+        >
+          {g.visitPending ? 'Choose what to do with your visit first' : g.ending === 'released' ? 'Send it. Walk out.' : 'Send'}
         </button>
         {g.ending !== 'released' && <StopCounting g={g} act={act} />}
       </div>
@@ -589,7 +661,7 @@ function Draft(p: { g: Game; act: Act; onQuit: () => void }) {
         return (
           <button key={id} className={`choice ${b === id ? 'sel' : ''}`} onClick={() => setB(id)}>
             <b>{bg.front}</b>
-            <span className="small">Sentence: {bg.sentence} months</span>
+            <span className="small">Offender score from priors: {bg.score}{bg.priorDoc ? ' · Been down before: arrives with a DOC number' : ''}</span>
           </button>
         );
       })}
@@ -626,10 +698,10 @@ function CharacterCards({ g }: { g: Game }) {
     <>
       <div className="panel">
         <h3>Public card</h3>
-        <h2>{ch.name}</h2>
+        <h2>{displayName(g)}</h2>
         <p>{bg.front}</p>
         <p><b>{chg.name}.</b> {ch.claim}</p>
-        <p className="small dim">At {fac.name} · Sentence {g.sentence} months · Standing {g.standing} · Support {g.support}</p>
+        <p className="small dim">At {fac.name} · Sentence {g.court ? fmtMonths(g.court.months) : `${g.sentence} months`} · Standing {g.standing} · Support {g.support}</p>
         {publicFailings.map((f) => <p key={f.id} className="small"><b>{f.name}.</b> {f.text}</p>)}
         <div className="grid4">
           {STATS.map((k) => (
@@ -653,6 +725,7 @@ function CharacterCards({ g }: { g: Game }) {
         {!priv && <button onClick={() => setPriv(true)}>Show (only you should look)</button>}
         {priv && (
           <>
+            <p><b>Your name.</b> {ch.name}. DOC {ch.docNumber}{bg.priorDoc ? ', the same number as last time' : ''}.</p>
             <p><b>What actually happened.</b> {chg.truth}</p>
             <p><b>Who you left outside.</b> {out.who}. {out.secret}</p>
             <p className="small dim">Secret's tag: {ch.privateTag}. Three {ch.privateTag} rumors turn this card face up, and you lose 2 Standing.{g.privateFlipped ? ' It already has.' : ''}</p>
@@ -669,7 +742,7 @@ function CharacterCards({ g }: { g: Game }) {
 
 /* ---------------------------------------------------------------- */
 
-const STATUS_NOTE = { sent: '', delayed: ' (it arrived a month late)', held: '' } as const;
+const STATUS_NOTE = { sent: '', delayed: ' (held in review; it arrived late)', held: '' } as const;
 
 function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit: () => void }) {
   const ch = g.char!;
@@ -678,7 +751,7 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
   const out = outside(ch.outsideId);
   const rows = ledgerRows(g);
   const yours = consp(g);
-  const sent = sentencingRows();
+  const sent = sentencingRows(ch.chargeId);
   const tornPulls = Object.values(g.pull).filter((x) => x.torn).length;
   const s = g.stats;
   const notes: string[] = [];
@@ -690,12 +763,16 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
   else if (s.pullGiven >= 2) notes.push('You gave in to the Pull more than once. It was easy, and it was rewarded. That is how it works.');
   if (g.privateFlipped) notes.push('Your private card turned face up. Everyone knew.');
   if (g.flags.stopped) notes.push('You stopped counting days. You served every one of them.');
+  if (g.court?.talked) notes.push(g.flags.exposed ? 'You traded a name for months. It came out, the way paperwork does.' : 'You traded a name for months. It never came out. It is still in the transcripts.');
+  const lvl = routineLevel(g);
+  if (lvl >= 3) notes.push(`By the end you answered to ${ch.docNumber} faster than to your name.`);
+  else if (lvl === 2) notes.push(`By the end, ${ch.docNumber} had started to sound like your name.`);
   if (!notes.length) notes.push('You did your time.');
 
   const early = g.sentence - g.m;
   const headline =
     g.ending === 'released'
-      ? `You walked out on month ${g.m}${early > 0 ? `, ${early} month${early > 1 ? 's' : ''} early` : ''}.`
+      ? `You walked out in ${clock(g, g.m)}${early > 0 ? `, ${Math.round(early * g.perTurn)} month${Math.round(early * g.perTurn) === 1 ? '' : 's'} before your max date` : ', on your max date'}.`
       : g.ending === 'died'
         ? 'You did not walk out.'
         : g.ending === 'pc'
@@ -730,25 +807,66 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
           <div>
             <div className="small dim" style={{ marginBottom: 6 }}>What the yard knew</div>
             <div className="publiccard">
-              <h2>{ch.name}</h2>
+              <h2>{ch.name} <span className="dim small">DOC {ch.docNumber}</span></h2>
               <p>{bg.front}</p>
               <p><b>{chg.name}.</b> {ch.claim}</p>
               {ch.failings.map(failing).filter((f) => f.card === 'public').map((f) => <p key={f.id} className="small">{f.name}.</p>)}
             </div>
           </div>
           <div>
-            <div className="small dim" style={{ marginBottom: 6 }}>{anyNotebook && g.support === 0 ? 'What you wrote in your notebook' : `What ${out.who.toLowerCase()} heard`}</div>
+            <div className="small dim" style={{ marginBottom: 6 }}>{anyNotebook && g.support === 0 ? 'What you wrote in your notebook' : 'What you sent home'}</div>
             {delivered.map((t, i) => (
-              <div key={`d${i}`} className="letter"><span className="small">Month {t.m}{t.notebook ? ' · notebook' : ''}</span><br />{t.text}{STATUS_NOTE[t.status as 'sent' | 'delayed']}</div>
+              <div key={`d${i}`} className="letter">
+                <span className="small">Month {t.m}{t.notebook ? ' · notebook' : ''}{t.to ? ` · to ${t.to} · ${t.subject}` : ''}</span>
+                <br />
+                {t.text || <span className="dim">(subject only)</span>}{STATUS_NOTE[t.status as 'sent' | 'delayed']}
+                {t.flagged && <div className="small dim">Flagged by the facility keyword list: {t.flagged.join(', ')}. "Interpretation of policy."</div>}
+              </div>
             ))}
             {!delivered.length && !held.length && <p className="dim">No letters were written.</p>}
           </div>
         </div>
+        {g.inbox.length > 0 && (
+          <>
+            <h3>What came back</h3>
+            {g.inbox.map((x, i) => (
+              <div key={`in${i}`} className="letter">
+                <span className="small">Month {x.m} · from {x.from} · {x.subject}</span>
+                <br />
+                {x.text}
+                {x.slip && <div className="small dim">Staff read this one too.</div>}
+              </div>
+            ))}
+          </>
+        )}
+        {g.rejections.some((x) => x.dir === 'in' && x.status !== 'overturned') && (
+          <>
+            <h3>Withheld from you</h3>
+            {g.rejections.filter((x) => x.dir === 'in' && x.status !== 'overturned').map((x) => (
+              <div key={`w${x.id}`} className="letter">
+                <span className="small">Month {x.m} · from {x.who}</span>
+                <br />
+                <span className="dim">You never read this. They wrote:</span> {x.text}
+                <div className="small dim">Reason given: {x.reason}.{x.stage === 'none' ? ' Not appealed.' : x.stage === 'hq' ? ' Appealed twice. Upheld.' : ' Appealed. Upheld.'}</div>
+              </div>
+            ))}
+          </>
+        )}
+        <p className="small dim">Every envelope that leaves a Washington prison is stamped: "Its contents are uncensored."</p>
         {held.length > 0 && (
           <>
             <h3>Never delivered</h3>
-            <p className="small dim">Staff needed no reason and gave none.</p>
-            {held.map((t, i) => <div key={`h${i}`} className="letter"><span className="small">Month {t.m}</span><br />{t.text}</div>)}
+            {held.map((t, i) => {
+              const r = g.rejections.find((x) => x.m === t.m && x.who === t.to && x.subject === t.subject);
+              return (
+                <div key={`h${i}`} className="letter">
+                  <span className="small">Month {t.m}{t.to ? ` · to ${t.to}` : ''}</span>
+                  <br />
+                  {t.text || <span className="dim">(subject only)</span>}
+                  {r && <div className="small dim">Reason given: {r.reason}.{r.status === 'overturned' ? ' Overturned on review, and sent late.' : r.status === 'upheld' ? ' Upheld at Headquarters. Kept on file for two years, then destroyed. Never returned to you.' : ''}</div>}
+                </div>
+              );
+            })}
           </>
         )}
       </div>
@@ -769,26 +887,30 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
         )}
       </div>
 
+      {g.ending === 'released' && <Odds g={g} />}
+
       <div className="panel">
         <h3>The sentencing ledger</h3>
         <p>
-          Every sentence starts at 12 months. Each line in your case that went against you added 2. Here are all {sent.rows.length} backgrounds side by side.
-          The pattern is never announced during play. Yours is highlighted.
+          The grid is the same for everyone. Here are all {sent.rows.length} backgrounds, each offered the same deal on your charge. Priors raise the offender
+          score, and priors follow policing. A public defender and a jail cell while the case is pending push the agreed number up the range. The pattern is
+          never announced during play. Yours is highlighted.
         </p>
         <table>
-          <thead><tr><th>Background</th><th>Case</th><th>Months</th></tr></thead>
+          <thead><tr><th>Background</th><th>Case</th><th>Score</th><th>Deal</th></tr></thead>
           <tbody>
             {sent.rows.map((r) => (
               <tr key={r.id} className={r.id === bg.id ? 'you' : ''}>
                 <td>{r.ethnicity}, {r.age}</td>
                 <td className="small">{r.case.map((c) => `${c.bad ? '✖' : '✓'} ${c.text}`).join(' ')}</td>
-                <td>{r.sentence}</td>
+                <td>{r.score}</td>
+                <td>{r.months}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <p className="small dim">
-          The average sentence across these cards is {sent.white.toFixed(0)} months for the white backgrounds and {sent.others.toFixed(1)} for everyone else.
+          The average deal across these cards is {sent.white.toFixed(1)} months for the white backgrounds and {sent.others.toFixed(1)} for everyone else.
           No single card makes the point. The ledger does, when you line them up.
         </p>
       </div>
@@ -824,5 +946,122 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
       <button className="primary" onClick={onAgain}>Serve another sentence</button>
       <button className="ghost" onClick={onQuit}>Main menu</button>
     </>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+
+function Release({ g, act }: { g: Game; act: Act }) {
+  const card = releaseCard(g);
+  if (!card) return null;
+  return (
+    <div className="panel">
+      <h2>{card.title}</h2>
+      <p className="card-text">{card.text}</p>
+      {card.choices.map((c) => (
+        <button key={c.id} className={card.choices.length === 1 ? 'primary' : 'choice'} onClick={() => act((s) => advanceRelease(s, c.id))}>
+          {card.choices.length === 1 ? c.label : <b>{c.label}</b>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Real numbers, from real people released before you. */
+function Odds({ g }: { g: Game }) {
+  const ch = g.char!;
+  const rate = rateFor(ch.chargeId);
+  const wa = WA_BY_CUSTODY[g.custody] ?? WA_ALL;
+  const est = estimate(ch.chargeId, g.custody, !!background(ch.backgroundId).priorDoc);
+  const night = g.release?.picks['The First Night'];
+  return (
+    <div className="panel">
+      <h3>What the numbers say</h3>
+      {night && <p className="small dim">Your first night out: {night.toLowerCase()}.</p>}
+      <p>
+        Of the {rate.released.toLocaleString('en-US')} people released from state prison in 2008 after time for {rate.label}, <b>{rate.y3.toFixed(0)}%</b> were
+        arrested again within three years, and <b>{rate.y10.toFixed(0)}%</b> within ten.
+      </p>
+      <p>
+        You walked out of <b>{g.custody}</b> custody. In Washington, people released from {g.custody} custody returned to prison at{' '}
+        <b>{wa.toFixed(0)}%</b> over the next nineteen years, against {WA_ALL.toFixed(0)}% for everyone released. Custody comes from a score built on
+        your infractions.
+      </p>
+      <p>
+        {background(ch.backgroundId).priorDoc
+          ? <>You had been to prison before. In Washington, people who had returned at <b>{WA_PRIOR.yes.toFixed(0)}%</b> over nineteen years; people on their first time down, {WA_PRIOR.no.toFixed(0)}%.</>
+          : <>This was your first time down. In Washington, first-timers returned at <b>{WA_PRIOR.no.toFixed(0)}%</b> over nineteen years; people who had been before, {WA_PRIOR.yes.toFixed(0)}%.</>}
+      </p>
+      <p>
+        Starting from the {rate.y3.toFixed(0)}% for {rate.label} and adjusting for your custody and your record, a rough figure for someone like you: <b>{est.y3}%</b> arrested again within three years.
+      </p>
+      <p className="small dim">
+        Real rates, combined; not a prediction about you. The Washington figures overlap, so the adjustment leans toward the extremes. These are the numbers a risk tool sees. They count arrests and returns, which follow
+        policing and supervision as much as behavior. They say nothing about who you are.
+      </p>
+      <p className="small dim">
+        Sources: <a href={SOURCES.bjs.url} target="_blank" rel="noreferrer">{SOURCES.bjs.label}</a>;{' '}
+        <a href={SOURCES.wa.url} target="_blank" rel="noreferrer">{SOURCES.wa.label}</a>.
+      </p>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+
+/** Intake: the charge sheet against the deal. The overcharge is the point. */
+function Court({ g, act }: { g: Game; act: Act }) {
+  const ch = g.char!;
+  const c = CASES[ch.chargeId];
+  if (!c || !g.court) return null;
+  const bg = background(ch.backgroundId);
+  const bad = bg.case.map((x) => x.bad);
+  const cur = g.court;
+  const offer = cur.offer;
+  const deal = sentenceFor(ch.chargeId, bg.score, 'deal', bad, { offer });
+  const talk = sentenceFor(ch.chargeId, bg.score, 'deal', bad, { offer, talk: true });
+  const trial = sentenceFor(ch.chargeId, bg.score, 'trial', bad);
+  const row = (label: string, sen: typeof deal, sel: boolean, onPick: (x: Game) => Game, note: string) => (
+    <button className={`choice ${sel ? 'sel' : ''}`} onClick={() => act(onPick)}>
+      <b>{label}: {fmtMonths(sen.months)}</b>
+      <span className="small">
+        {sen.sheet.offense}{sen.sheet.counts > 1 ? `, ${sen.sheet.counts} counts` : ''} (RCW {sen.sheet.rcw}), level {ROMAN[sen.sheet.level]}
+        {sen.sheet.grid === 'drug' ? ' on the drug grid' : ''}, offender score {sen.score}: standard range {fmtRange(sen.range)}
+        {sen.sheet.enh ? `, plus ${sen.enhMonths} months for the ${sen.sheet.enh.label}${sen.sheet.enh.flat ? ', flat time' : ''}` : ''}.
+        {sen.sheet.strike ? ' A strike.' : ''}
+      </span>
+      <span className="small dim">{note} Earned release: up to {sen.earnedMax} months off.</span>
+    </button>
+  );
+  const OFFER_NOTE = {
+    first: '',
+    better: 'You turned down the first offer. The prosecutor came back lower: they did not want to try it either.',
+    same: "You turned down the first offer. It's the same offer, and they're not budging.",
+    worse: 'You turned down the first offer. The prosecutor took it personally. The new offer is worse.'
+  } as const;
+  const canTalk = !!c.info && talk.months < deal.months;
+  return (
+    <div className="panel">
+      <h3>The court</h3>
+      <p className="small dim">
+        The prosecutor charged high so the offer would sound good. Your offender score counts your priors and every other count on the sheet. Nobody here
+        decides whether you did it; that was settled before you got this far. What's left is how long.
+      </p>
+      {offer !== 'first' && <p className="small">{OFFER_NOTE[offer]}</p>}
+      {row('Take the deal', deal, cur.path === 'deal' && !cur.talked, (x) => chooseCourt(x, 'deal'), 'A reduced charge at an agreed number.')}
+      {canTalk && row(
+        'Take the deal and tell what you know', talk, cur.path === 'deal' && cur.talked, (x) => chooseCourt(x, 'deal', true),
+        `${c.infoText} Give them a name and the agreed number drops to the bottom of the range. It goes in the transcripts, and it can come out.`
+      )}
+      {c.info && !canTalk && <p className="small dim">{c.infoText} Your lawyer already got you the bottom of the range. Telling would buy you nothing.</p>}
+      {row('Go to trial', trial, cur.path === 'trial', (x) => chooseCourt(x, 'trial'), 'Everything charged, and the judge gives the top of the range for making the court do its job.')}
+      {offer === 'first' && <button className="ghost" onClick={() => act(refuseOffer)}>Turn down the first offer and wait for another</button>}
+      {(deal.sheet.strike || trial.sheet.strike) && (
+        <p className="small dim">
+          A strike is a "most serious offense" (RCW 9.94A.030). Three of them is life without the possibility of release.
+          {trial.sheet.strike && !deal.sheet.strike ? ' The deal takes the strike off your record.' : ''}
+        </p>
+      )}
+    </div>
   );
 }

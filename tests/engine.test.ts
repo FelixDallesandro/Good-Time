@@ -17,7 +17,7 @@ describe('Conspicuity', () => {
   it('only adds blue dice on discretionary rules, never objective ones', () => {
     let s = newGame('harlan', 42);
     s = draftPick(s, {
-      chargeId: s.draft!.charges[0], backgroundId: s.draft!.backgrounds[0],
+      chargeId: s.draft!.charges[0], backgroundId: 'b2', // no priors: isolate Conspicuity
       outsideId: s.draft!.outsides[0], name: 'T'
     });
     s.char!.conspBase = 2;
