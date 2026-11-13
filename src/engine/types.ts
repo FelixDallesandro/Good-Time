@@ -140,6 +140,7 @@ export interface Effect {
   lockdown?: boolean;
   treatment?: 'comply' | 'refuse';
   paperwork?: 'show' | 'deny' | 'pc';
+  newCase?: 'deal' | 'trial';
   segSafety?: number; // chance staff move you off mainline for your own safety (not discipline)
   log?: string;
 }
@@ -455,8 +456,10 @@ export interface Court {
   score: number;
   range: { low: number; high: number; plus: boolean; days?: number };
   base: number;
-  enh?: { label: string; months: number; flat: boolean };
+  enhs: { label: string; months: number; flat: boolean }[];
   enhMonths: number;
+  /** What happened at the arrest: ran, gun, child. */
+  facts: ('ran' | 'gun' | 'child')[];
   months: number;
   earnedMax: number;
   strike: boolean;

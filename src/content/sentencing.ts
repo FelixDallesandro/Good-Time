@@ -6,8 +6,19 @@
  * - Enhancements: RCW 9.94A.533. Deadly weapon: class A 24 months, class B 12, class C 6; mandatory, total
  *   confinement, consecutive. Drug offense also violating RCW 69.50.435 (drug-free zones): +24. Eluding with a
  *   special allegation of endangerment (RCW 9.94A.834): +12 months and a day.
+ * - More enhancements from RCW 9.94A.533: firearm, class A felony, 5 years (3)(a); each child under 16 in the car on
+ *   an impaired vehicular assault, +12 months (13).
  * - Earned release: RCW 9.94A.729. Up to 10% for serious violent offenses (none in this game), one-third for every
- *   other case; none at all on the deadly weapon enhancement portion.
+ *   other case; none at all on firearm or deadly weapon enhancements (2)(a), or child passenger enhancements (2)(b).
+ *
+ * - A drug offense committed inside a jail or prison (RCW 9.94A.533(5)): +18 months on delivery of methamphetamine or a
+ *   narcotic (69.50.401(2)(a)/(b)), +15 on other schedules. A felony committed while under sentence for a felony
+ *   runs consecutively: the new term starts when every prior term ends (RCW 9.94A.589(2)(a)).
+ *
+ * The facts of the arrest (game odds, rolled at intake): running from the arrest adds a count of attempting to elude
+ * (RCW 46.61.024) with the endangerment allegation; a gun on a robbery turns the deadly weapon into a firearm
+ * enhancement; a child in the car on a DUI. The prosecutor files all of it. The deal drops the enhancement (game);
+ * an eluding count stays on the deal and still raises the offender score.
  * - Strikes: "most serious offense", RCW 9.94A.030. Class A felonies (robbery 1, burglary 1), assault 2, vehicular
  *   assault while impaired or reckless, any felony with a deadly weapon verdict. Robbery 2 is no longer on the list.
  *   A third strike is life without the possibility of release (RCW 9.94A.570), so no card here is on its third.
@@ -70,6 +81,21 @@ const DEADLY_A: Enhancement = { label: 'deadly weapon enhancement (class A)', mo
 const DEADLY_B: Enhancement = { label: 'deadly weapon enhancement (class B)', months: 12, flat: true };
 const DRUG_ZONE: Enhancement = { label: 'drug-free zone enhancement', months: 24, flat: false };
 const ELUDE: Enhancement = { label: 'endangerment enhancement', months: 12, flat: false };
+const FIREARM_A: Enhancement = { label: 'firearm enhancement (class A)', months: 60, flat: true };
+const CHILD: Enhancement = { label: 'child passenger enhancement', months: 12, flat: true };
+
+/** What happened at the arrest, beyond the charge itself. */
+export type Fact = 'ran' | 'gun' | 'child';
+/** Which charges each fact can come with, and the game odds it did. */
+export const FACTS: Record<Fact, { charges: string[]; odds: number; text: string }> = {
+  ran: {
+    charges: ['stolen_vehicle', 'robbery', 'delivery', 'burglary', 'trafficking'], odds: 1 / 3,
+    text: 'You ran when they lit you up. The pursuit is its own felony, with an endangerment allegation on top.'
+  },
+  gun: { charges: ['robbery'], odds: 1 / 2, text: 'There was a gun. The weapon enhancement is five years, not two.' },
+  child: { charges: ['vehicular'], odds: 1 / 4, text: 'Your kid was in the back seat. That is twelve more months, flat.' }
+};
+const ELUDE_COUNT = { offense: 'Attempting to elude a pursuing police vehicle', rcw: '46.61.024' };
 
 /** Who there is to tell on. Codefendants can end up inside too; a ring leaves a paper trail. */
 export type Info = 'codefendant' | 'ring';
@@ -150,6 +176,10 @@ export type Offer = 'first' | 'better' | 'same' | 'worse';
 export interface Sentence {
   path: Path;
   sheet: Sheet;
+  /** Every enhancement on this sentence, in months with the counts already applied. */
+  enhs: Enhancement[];
+  /** Extra counts the arrest added (an eluding count), on top of the sheet. */
+  extra: { offense: string; rcw: string }[];
   score: number;
   range: Range;
   /** The base term in months, before enhancements. */
@@ -168,20 +198,50 @@ export function dealPosition(caseBad: boolean[]): number {
 }
 
 export function sentenceFor(
-  chargeId: string, priorPoints: number, path: Path, caseBad: boolean[], o: { talk?: boolean; offer?: Offer } = {}
+  chargeId: string, priorPoints: number, path: Path, caseBad: boolean[],
+  o: { talk?: boolean; offer?: Offer; facts?: Fact[] } = {}
 ): Sentence {
   const sheet = CASES[chargeId][path];
-  const score = priorPoints + sheet.counts - 1;
+  const facts = (o.facts ?? []).filter((f) => FACTS[f].charges.includes(chargeId));
+  const trial = path === 'trial';
+  const enhs: Enhancement[] = [];
+  if (sheet.enh) {
+    const e = trial && facts.includes('gun') && sheet.enh === DEADLY_A ? FIREARM_A : sheet.enh;
+    const n = sheet.enhCounts ?? 1;
+    enhs.push(n > 1 ? { ...e, label: `${e.label}, ${n} counts`, months: e.months * n } : e);
+  }
+  const extra = facts.includes('ran') ? [ELUDE_COUNT] : [];
+  if (trial && facts.includes('ran')) enhs.push(ELUDE);
+  if (trial && facts.includes('child')) enhs.push(CHILD);
+  const score = priorPoints + sheet.counts + extra.length - 1;
   const r = range(sheet.grid, sheet.level, score);
   let pos = dealPosition(caseBad);
   if (o.offer === 'better') pos = Math.max(0, pos - 0.5);
   if (o.offer === 'worse') pos = 1;
   if (o.talk && CASES[chargeId].info) pos = 0; // what you know buys the bottom of the range
   const base = path === 'trial' ? r.high : Math.round(r.low + (r.high - r.low) * pos);
-  const enhMonths = sheet.enh ? sheet.enh.months * (sheet.enhCounts ?? 1) : 0;
-  const flat = sheet.enh?.flat ? enhMonths : 0;
+  const enhMonths = enhs.reduce((t, e) => t + e.months, 0);
+  const flat = enhs.filter((e) => e.flat).reduce((t, e) => t + e.months, 0);
   const months = base + enhMonths;
-  return { path, sheet, score, range: r, base, enhMonths, months, earnedMax: Math.floor((months - flat) / 3) };
+  return { path, sheet, enhs, extra, score, range: r, base, enhMonths, months, earnedMax: Math.floor((months - flat) / 3) };
+}
+
+/** The new case if DOC refers a trafficking finding to the prosecutor. */
+export const INSIDE_CASE = {
+  offense: 'Delivery of methamphetamine', rcw: '69.50.401(2)(b)', grid: 'drug' as Grid, level: 2,
+  enh: { label: 'enhancement for a drug offense in a state correctional facility', months: 18, flat: false } as Enhancement
+};
+
+/**
+ * Sentence for a delivery inside. Every count on the current judgment is now a prior conviction (simplified score).
+ * The deal drops the enhancement (game), the same leverage as the arrest facts; trial is the top of the range plus it.
+ */
+export function insideSentence(priorPoints: number, path: Path, caseBad: boolean[]): { range: Range; base: number; enhMonths: number; months: number; score: number } {
+  const r = range(INSIDE_CASE.grid, INSIDE_CASE.level, priorPoints);
+  const trial = path === 'trial';
+  const base = trial ? r.high : Math.round(r.low + (r.high - r.low) * dealPosition(caseBad));
+  const enhMonths = trial ? INSIDE_CASE.enh.months : 0;
+  return { range: r, base, enhMonths, months: base + enhMonths, score: priorPoints };
 }
 
 /** At least this many turns are served, even with every day of earned release; long sentences are compressed. */

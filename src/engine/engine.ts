@@ -4,7 +4,7 @@ import {
 } from './content';
 import { d, next, pickN, shuffle } from './rng';
 import { flaggedWords } from '../content/keywords';
-import { CASES, sentenceFor, timeScale, type Offer, type Path } from '../content/sentencing';
+import { CASES, FACTS, INSIDE_CASE, fmtMonths, fmtRange, insideSentence, sentenceFor, timeScale, type Fact, type Offer, type Path } from '../content/sentencing';
 import { TOPICS, compose, replyContext, type Topic } from './replies';
 import {
   GENERAL_SANCTIONS, NO_WEIGHTS, PETTY, PHONE_LOSS, SEG_CODES, SERIOUS_SANCTIONS, TRAFFICKING_GCT, violation
@@ -303,6 +303,7 @@ export function draftPick(
     privateTag, knownOfficer, claim: ch.claim,
     docNumber: docNumberFor(s, bg.priorDoc ? bg.age : null)
   };
+  rollFacts(s);
   setCourt(s, 'deal');
   // been down before: the place is not new, and the number is not new either
   if (bg.priorDoc) {
@@ -450,6 +451,7 @@ function startMonth(s: Game) {
   if (act === 'short') s.queue.push(drawCount(s));
   if (lvl >= 2 && !seg && next(s) < 0.5) s.queue.push(countCard(s));
   if (!seg && treatmentDue(s)) s.queue.push(treatmentCard(s));
+  if (s.flags.newCaseAt && s.m >= Number(s.flags.newCaseAt)) s.queue.push(newCaseCard(s));
   if (s.flags.exposeAt && !s.flags.exposed && s.m >= Number(s.flags.exposeAt) && !seg) s.queue.push(paperworkCard(s));
   if (s.standing === 0) s.queue.push(clone(PROMPTS.get('targeted')!));
   if (s.m >= 2 && !s.actUsed[act].leak && next(s) < 0.35) {
@@ -1196,15 +1198,60 @@ function addBoxes(s: Game, n: number) {
  * Take the deal or go to trial. The deal is the reduced sheet at the agreed number, and you tell what you know. Trial
  * is the top of the range on everything charged. Either way, the real months become turns: at least 12 served.
  */
+/** Game odds that a trafficking finding (665) is referred for a new felony charge. */
+export const REFERRAL_ODDS = 0.5;
+
+/** Points for the new case: priors, plus every count on the judgment you are serving now. */
+function insidePoints(s: Game) {
+  return background(s.char!.backgroundId).score + (s.court?.counts ?? 1);
+}
+
+export function newCaseCard(s: Game): Card {
+  const bad = background(s.char!.backgroundId).case.map((c) => c.bad);
+  const pts = insidePoints(s);
+  const deal = insideSentence(pts, 'deal', bad);
+  const trial = insideSentence(pts, 'trial', bad);
+  return {
+    id: 'new_case', kind: 'prompt', title: 'New Charges',
+    text: `Legal mail. The county has charged you: ${INSIDE_CASE.offense} (RCW ${INSIDE_CASE.rcw}), with an ${INSIDE_CASE.enh.label}, ${INSIDE_CASE.enh.months} months (RCW 9.94A.533(5)). ` +
+      `Offender score ${pts}, every count you are serving now included: standard range ${fmtRange(deal.range)}. ` +
+      'Whatever you get starts the day this sentence ends (RCW 9.94A.589(2)(a)). You see the lawyer for twenty minutes on a video screen.',
+    choices: [
+      { id: 'deal', label: `Take the deal: ${fmtMonths(deal.months)}`, text: 'They drop the enhancement. You sign.', effect: { newCase: 'deal' } },
+      { id: 'trial', label: `Go to trial: ${fmtMonths(trial.months)}`, text: 'The top of the range, and the enhancement on top of that.', effect: { newCase: 'trial' } }
+    ]
+  };
+}
+
+function newCaseStep(s: Game, path: 'deal' | 'trial') {
+  const sen = insideSentence(insidePoints(s), path, background(s.char!.backgroundId).case.map((c) => c.bad));
+  s.flags.newMonths = sen.months;
+  if (path === 'trial') s.flags.newTrial = true;
+  delete s.flags.newCaseAt;
+  L(s, `${path === 'trial' ? 'Convicted at trial' : 'You plead'}: ${fmtMonths(sen.months)}, consecutive. Your release date is now the first day of the next sentence.`);
+}
+
+/** The facts of the arrest, rolled once at intake (game odds in FACTS), stored as flags fact_ran, fact_gun, fact_child. */
+function rollFacts(s: Game) {
+  if (!s.char) return;
+  for (const f of Object.keys(FACTS) as Fact[])
+    if (FACTS[f].charges.includes(s.char.chargeId) && next(s) < FACTS[f].odds) s.flags[`fact_${f}`] = true;
+}
+
+export function caseFacts(s: Game): Fact[] {
+  return (Object.keys(FACTS) as Fact[]).filter((f) => s.flags[`fact_${f}`]);
+}
+
 export function setCourt(s: Game, path: Path, talk = false, offer: Offer = s.court?.offer ?? 'first') {
   if (!s.char) return;
   const bg = background(s.char.backgroundId);
   talk = path === 'deal' && talk && !!CASES[s.char.chargeId]?.info;
-  const sen = sentenceFor(s.char.chargeId, bg.score, path, bg.case.map((c) => c.bad), { talk, offer });
+  const facts = caseFacts(s);
+  const sen = sentenceFor(s.char.chargeId, bg.score, path, bg.case.map((c) => c.bad), { talk, offer, facts });
   const t = timeScale(sen);
   s.court = {
     path, offense: sen.sheet.offense, rcw: sen.sheet.rcw, level: sen.sheet.level, grid: sen.sheet.grid,
-    counts: sen.sheet.counts, score: sen.score, range: sen.range, base: sen.base, enh: sen.sheet.enh,
+    counts: sen.sheet.counts + sen.extra.length, score: sen.score, range: sen.range, base: sen.base, enhs: sen.enhs, facts,
     enhMonths: sen.enhMonths, months: sen.months, earnedMax: sen.earnedMax, strike: sen.sheet.strike, talked: talk, offer
   };
   s.perTurn = t.perTurn;
@@ -1689,6 +1736,7 @@ function apply(s: Game, e: Effect | undefined, ch?: Choice) {
   if (e.repeat) s.flags.__repeat = true;
   if (e.treatment) treatmentStep(s, e.treatment);
   if (e.paperwork) paperworkStep(s, e.paperwork);
+  if (e.newCase) newCaseStep(s, e.newCase);
   if (e.flag) {
     s.flags[e.flag] = true;
     if (e.flag === 'fresh_ink') s.flags.inked = true; // healed or not, the ink stays
@@ -1943,6 +1991,10 @@ function seriousSanction(s: Game, h: Hearing, plea: 'guilty' | 'contest') {
   if (!s.flags.stopped && s.maxBoxes === 0 && s.gctLost > 0) {
     s.flags.ppm = true;
     L(s, 'You have no good time left to lose. The hearing officer refers you for prosecution: Persistent Prison Misbehavior. A single act can bring both discipline and a criminal charge.');
+  }
+  if (h.code === '665' && !s.flags.newCaseAt && !s.flags.newMonths && next(s) < REFERRAL_ODDS) {
+    s.flags.newCaseAt = s.m + 1;
+    L(s, 'The finding is referred to the county prosecutor. The same act can bring discipline here and a new felony out there.');
   }
   const days = h.code === '665' ? TRAFFICKING_GCT : take(tbl.gct[tier]);
   if (days > 0 && !s.flags.stopped) {
@@ -2626,6 +2678,15 @@ export function submitLetters(g: Game, msgs: (string | OutMsg)[]): Game {
   s.letters.push({ m: s.m, notebook, lines: out });
   accrueRoutine(s, out.some((l) => l.status !== 'held' && !isBlank(l.text)));
   s.extraLines = 0;
+  if (s.ending === 'released' && s.flags.newCaseAt && !s.flags.newMonths) {
+    // charged but never resolved before the date: the plea happens on the hold
+    newCaseStep(s, 'deal');
+  }
+  if (s.ending === 'released' && s.flags.newMonths) {
+    L(s, 'They call your name for release, and then for the hold. You sign for your property and hand it back.');
+    s.phase = 'over';
+    return s;
+  }
   if (s.ending === 'released') {
     if (s.flags.promise_date && s.m > s.sentence - s.maxBoxes) addSupport(s, -1);
     if (s.flags.promise_efv && s.efv.done === 0) addSupport(s, -2);

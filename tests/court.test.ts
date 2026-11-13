@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BACKGROUNDS, CHARGES } from '../src/engine/content';
-import { beginSentence, choose, chooseCourt, clock, draftPick, newGame, refuseOffer, releaseMonth, syncBoxes, TREATMENT_MISSES } from '../src/engine/engine';
-import { CASES, MIN_TURNS, range, sentenceFor, timeScale } from '../src/content/sentencing';
+import { beginSentence, choose, newCaseCard, chooseCourt, clock, draftPick, newGame, refuseOffer, releaseMonth, syncBoxes, TREATMENT_MISSES } from '../src/engine/engine';
+import { CASES, FACTS, INSIDE_CASE, insideSentence, MIN_TURNS, range, sentenceFor, timeScale, type Fact } from '../src/content/sentencing';
 import type { Game } from '../src/engine/types';
+import { playGame } from '../src/engine/autoplay';
 
 const intake = (charge: string, bg: string): Game =>
   draftPick(newGame('harlan', 7), { chargeId: charge, backgroundId: bg, outsideId: 'mother', name: 'T' });
@@ -137,5 +138,91 @@ describe('turning down the first offer', () => {
       if (r.court!.offer === 'worse') expect(r.court!.months).toBeGreaterThanOrEqual(g.court!.months);
     }
     expect([...seen].sort()).toEqual(['better', 'same', 'worse']);
+  });
+});
+
+describe('the facts of the arrest', () => {
+  const all = Object.keys(FACTS) as Fact[];
+  it('keeps every pairing a prison term, trial worse than the deal, and 12 to 16 served turns', () => {
+    for (const c of CHARGES)
+      for (const b of BACKGROUNDS) {
+        const facts = all.filter((f) => FACTS[f].charges.includes(c.id));
+        const bad = b.case.map((x) => x.bad);
+        const deal = sentenceFor(c.id, b.score, 'deal', bad, { facts });
+        const trial = sentenceFor(c.id, b.score, 'trial', bad, { facts });
+        expect(deal.months).toBeGreaterThanOrEqual(12);
+        expect(trial.months).toBeGreaterThan(deal.months);
+        for (const sen of [deal, trial]) {
+          const t = timeScale(sen);
+          expect(t.turns - t.boxes).toBeGreaterThanOrEqual(MIN_TURNS);
+          expect(t.turns - t.boxes).toBeLessThanOrEqual(16);
+        }
+      }
+  });
+  it('running adds an eluding count to both sheets and the endangerment enhancement at trial', () => {
+    const plain = sentenceFor('stolen_vehicle', 0, 'trial', [false, false]);
+    const ran = sentenceFor('stolen_vehicle', 0, 'trial', [false, false], { facts: ['ran'] });
+    expect(ran.score).toBe(plain.score + 1);
+    expect(ran.enhs.map((e) => e.label)).toContain('endangerment enhancement');
+    const deal = sentenceFor('stolen_vehicle', 0, 'deal', [false, false], { facts: ['ran'] });
+    expect(deal.extra.length).toBe(1);
+    expect(deal.enhs.length).toBe(0);
+  });
+  it('a gun makes the robbery enhancement five years flat; a child passenger is twelve months flat', () => {
+    const rob = sentenceFor('robbery', 0, 'trial', [false, false], { facts: ['gun'] });
+    expect(rob.months).toBe(41 + 60);
+    expect(rob.earnedMax).toBe(Math.floor(41 / 3));
+    const dui = sentenceFor('vehicular', 0, 'trial', [false, false], { facts: ['child'] });
+    const plain = sentenceFor('vehicular', 0, 'trial', [false, false]);
+    expect(dui.months).toBe(plain.months + 12);
+    expect(dui.earnedMax).toBe(plain.earnedMax);
+  });
+  it('ignores facts that do not belong to the charge', () => {
+    expect(sentenceFor('firearm', 0, 'trial', [false, false], { facts: ['ran', 'gun', 'child'] }).months)
+      .toBe(sentenceFor('firearm', 0, 'trial', [false, false]).months);
+  });
+  it('rolls the facts at intake, and some running cases show up', () => {
+    let ran = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const s = draftPick(newGame('harlan', seed), { chargeId: 'stolen_vehicle', backgroundId: 'b2', outsideId: 'mother', name: 'T' });
+      if (s.court!.facts.includes('ran')) ran++;
+    }
+    expect(ran).toBeGreaterThan(5);
+    expect(ran).toBeLessThan(40);
+  });
+});
+
+describe('a drug offense inside (RCW 9.94A.533(5))', () => {
+  it('adds 18 months at trial, drops it on the deal, and reads the drug grid', () => {
+    const deal = insideSentence(4, 'deal', [true, true]);
+    const trial = insideSentence(4, 'trial', [true, true]);
+    expect(deal.range).toMatchObject({ low: 20, high: 60 });
+    expect(trial.months).toBe(60 + INSIDE_CASE.enh.months);
+    expect(deal.enhMonths).toBe(0);
+  });
+  it('a new case runs consecutive: no release act, and the epilogue knows', () => {
+    const g = draftPick(newGame('harlan', 3), { chargeId: 'delivery', backgroundId: 'b3', outsideId: 'mother', name: 'T' });
+    let s = beginSentence(g);
+    s.cur = { card: newCaseCard(s) } as Game['cur'];
+    s.phase = 'card';
+    s = choose(s, 'deal');
+    expect(Number(s.flags.newMonths)).toBeGreaterThanOrEqual(12);
+    expect(s.flags.newCaseAt).toBeUndefined();
+  });
+  it('whole games with a referral end on the hold, not at the gate', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const s = playGame(seed, { flags: { newCaseAt: 3 } });
+      if (s.ending !== 'released') continue; // protective custody or a medical: no date to hold
+      checked++;
+      expect(Number(s.flags.newMonths)).toBeGreaterThanOrEqual(12);
+      expect(s.phase).toBe('over');
+      expect(s.release).toBeFalsy();
+    }
+    expect(checked).toBeGreaterThanOrEqual(3);
+    // charged too late to plead before the date: the plea happens on the hold
+    const late = [9, 10, 11, 12, 13].map((n) => playGame(n, { flags: { newCaseAt: 99 } })).find((x) => x.ending === 'released')!;
+    expect(Number(late.flags.newMonths)).toBeGreaterThanOrEqual(12);
+    expect(late.release).toBeFalsy();
   });
 });

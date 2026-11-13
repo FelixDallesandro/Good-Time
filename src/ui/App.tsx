@@ -3,7 +3,7 @@ import {
   FACILITIES, background, charge, facility, failing, outside
 } from '../engine/content';
 import {
-  STATS, actOf, activeTies, advanceRelease, chooseCourt, clock, refuseOffer, appeal, appealRejection, applyEfv, displayName, releaseCard, routineLevel, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
+  STATS, actOf, activeTies, advanceRelease, caseFacts, chooseCourt, clock, refuseOffer, appeal, appealRejection, applyEfv, displayName, releaseCard, routineLevel, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
   conspFacts, continueResult, custodyScore, cutLeverage, denyRumor, draftPick, efvBlock, grooveCost, grooveLabel, ledgerRows, leanOn, letterSlots, lockReason,
   newGame, onSheet, payDebt, plead, playMove, playScene, preview, primaryTie, releaseMonth, rollEyes, sentencingRows, standIn, stayIn,
   stopCounting, submitLetters, tieActive, toMail, visitingTies, MESSAGE_LIMIT
@@ -11,7 +11,7 @@ import {
 import { TOPICS, correspondents, topicsFor } from '../engine/replies';
 import { violation } from '../content/violations';
 import { SOURCES, WA_ALL, WA_BY_CUSTODY, WA_PRIOR, estimate, rateFor } from '../content/recidivism';
-import { CASES, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../content/sentencing';
+import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../content/sentencing';
 import type { Choice, Game, OutMsg } from '../engine/types';
 
 const SAVE = 'goodtime.save.v3';
@@ -158,7 +158,7 @@ function Rules(p: { onBack: () => void }) {
     <div className="panel">
       <h2>The whole rulebook fits on one card</h2>
       <h3>Two tracks</h3>
-      <p><b>Calendar.</b> Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high. Take the deal (a reduced charge at an agreed number), turn down the first offer and hope for a better one, or go to trial (the top of the range on everything charged). If there's someone to tell on, telling buys the bottom of the range, and it can come out later. Earned release can take up to a third off, never the time on a weapon enhancement. Each empty good-time box is a turn of earned release; each turn without a serious violation fills one. You walk out at your sentence minus your filled boxes. A serious violation can take good time for good. Every sentence plays at least 12 turns; long ones are compressed, and the clock shows the real months.</p>
+      <p><b>Calendar.</b> Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high. Take the deal (a reduced charge at an agreed number), turn down the first offer and hope for a better one, or go to trial (the top of the range on everything charged). If there's someone to tell on, telling buys the bottom of the range, and it can come out later. Earned release can take up to a third off, never the time on a weapon enhancement. Each empty good-time box is a turn of earned release; each turn without a serious violation fills one. You walk out at your sentence minus your filled boxes. A serious violation can take good time for good. Every sentence plays at least 12 turns; long ones are compressed, and the clock shows the real months. What happened at the arrest can stack more on: running from the police, a gun, a child in the car. A drug finding inside can be referred to the prosecutor, and a new sentence starts the day this one ends.</p>
       <p><b>Treatment.</b> Everyone is assessed, and every assessment finds a substance use disorder that needs treatment. Late in your sentence, group comes around. Get terminated from the program and you serve to your max date, good time or not.</p>
       <p><b>Standing.</b> How the yard sees you, 0 to 5. Keeping the code raises it; breaking it lowers it. At 0 you are a target.</p>
       <p className="dim">The institution controls your Calendar. The yard controls your Standing. Almost every choice trades one for the other.</p>
@@ -622,7 +622,7 @@ function Mail({ g, act }: { g: Game; act: Act }) {
             return { ...m, to: tie.id, topic: topics.includes(m.topic as never) ? m.topic : topics[0] };
           })))}
         >
-          {g.visitPending ? 'Choose what to do with your visit first' : g.ending === 'released' ? 'Send it. Walk out.' : 'Send'}
+          {g.visitPending ? 'Choose what to do with your visit first' : g.ending === 'released' ? (g.flags.newMonths || g.flags.newCaseAt ? 'Send it.' : 'Send it. Walk out.') : 'Send'}
         </button>
         {g.ending !== 'released' && <StopCounting g={g} act={act} />}
       </div>
@@ -771,7 +771,9 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
 
   const early = g.sentence - g.m;
   const headline =
-    g.ending === 'released'
+    g.ending === 'released' && g.flags.newMonths
+      ? `You finished this sentence in ${clock(g, g.m)}. The next one, ${fmtMonths(Number(g.flags.newMonths))} for a delivery inside, started the next morning.`
+      : g.ending === 'released'
       ? `You walked out in ${clock(g, g.m)}${early > 0 ? `, ${Math.round(early * g.perTurn)} month${Math.round(early * g.perTurn) === 1 ? '' : 's'} before your max date` : ', on your max date'}.`
       : g.ending === 'died'
         ? 'You did not walk out.'
@@ -781,9 +783,10 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
 
   const meet = visitingTies(g)[0] ?? activeTies(g)[0];
   const gate =
-    g.ending !== 'released' ? null
+    g.ending !== 'released' || g.flags.newMonths ? null
       : meet ? `At the gate: ${meet.who}. Your Support when you walked out was ${g.support}.`
         : 'At the gate: no one. You leave with a bus ticket and whatever is on your books.';
+  if (g.flags.newMonths) notes.push('The prosecutor took the same act the hearing officer already punished, and made it a new sentence. One act, punished twice: once by the hearing officer, once by the court.');
   if (g.flags.ppm) notes.push('You walked out with a referral for prosecution behind you: Persistent Prison Misbehavior. The sentence was not the end of it.');
   const file = g.infractions.filter((x) => x.result !== 'not_guilty');
 
@@ -887,7 +890,7 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
         )}
       </div>
 
-      {g.ending === 'released' && <Odds g={g} />}
+      {g.ending === 'released' && !g.flags.newMonths && <Odds g={g} />}
 
       <div className="panel">
         <h3>The sentencing ledger</h3>
@@ -1018,16 +1021,18 @@ function Court({ g, act }: { g: Game; act: Act }) {
   const bad = bg.case.map((x) => x.bad);
   const cur = g.court;
   const offer = cur.offer;
-  const deal = sentenceFor(ch.chargeId, bg.score, 'deal', bad, { offer });
-  const talk = sentenceFor(ch.chargeId, bg.score, 'deal', bad, { offer, talk: true });
-  const trial = sentenceFor(ch.chargeId, bg.score, 'trial', bad);
+  const facts = caseFacts(g);
+  const deal = sentenceFor(ch.chargeId, bg.score, 'deal', bad, { offer, facts });
+  const talk = sentenceFor(ch.chargeId, bg.score, 'deal', bad, { offer, talk: true, facts });
+  const trial = sentenceFor(ch.chargeId, bg.score, 'trial', bad, { facts });
   const row = (label: string, sen: typeof deal, sel: boolean, onPick: (x: Game) => Game, note: string) => (
     <button className={`choice ${sel ? 'sel' : ''}`} onClick={() => act(onPick)}>
       <b>{label}: {fmtMonths(sen.months)}</b>
       <span className="small">
         {sen.sheet.offense}{sen.sheet.counts > 1 ? `, ${sen.sheet.counts} counts` : ''} (RCW {sen.sheet.rcw}), level {ROMAN[sen.sheet.level]}
+        {sen.extra.map((x) => `, and ${x.offense} (RCW ${x.rcw})`).join('')}
         {sen.sheet.grid === 'drug' ? ' on the drug grid' : ''}, offender score {sen.score}: standard range {fmtRange(sen.range)}
-        {sen.sheet.enh ? `, plus ${sen.enhMonths} months for the ${sen.sheet.enh.label}${sen.sheet.enh.flat ? ', flat time' : ''}` : ''}.
+        {sen.enhs.map((e) => `, plus ${e.label.startsWith('endangerment') ? '12 months and a day' : `${e.months} months`} for the ${e.label}${e.flat ? ', flat time' : ''}`).join('')}.
         {sen.sheet.strike ? ' A strike.' : ''}
       </span>
       <span className="small dim">{note} Earned release: up to {sen.earnedMax} months off.</span>
@@ -1047,6 +1052,7 @@ function Court({ g, act }: { g: Game; act: Act }) {
         The prosecutor charged high so the offer would sound good. Your offender score counts your priors and every other count on the sheet. Nobody here
         decides whether you did it; that was settled before you got this far. What's left is how long.
       </p>
+      {facts.map((f) => <p key={f} className="small">{FACTS[f].text}</p>)}
       {offer !== 'first' && <p className="small">{OFFER_NOTE[offer]}</p>}
       {row('Take the deal', deal, cur.path === 'deal' && !cur.talked, (x) => chooseCourt(x, 'deal'), 'A reduced charge at an agreed number.')}
       {canTalk && row(

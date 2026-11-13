@@ -68,6 +68,8 @@ export interface PlayOpts {
   inject?: string[];
   /** The court at intake: default is the first deal, keeping quiet. */
   court?: { path: 'deal' | 'trial'; talk?: boolean };
+  /** Flags set when the sentence begins, e.g. to force a referral. */
+  flags?: Game['flags'];
 }
 
 export function playGame(seed: number, opts: PlayOpts = {}): Game {
@@ -82,6 +84,7 @@ export function playGame(seed: number, opts: PlayOpts = {}): Game {
   if (opts.inject) s.yardDeck = [...opts.inject, ...s.yardDeck];
   if (opts.court) s = chooseCourt(s, opts.court.path, opts.court.talk);
   s = beginSentence(s);
+  if (opts.flags) Object.assign(s.flags, opts.flags);
   for (let guard = 0; guard < 5000 && s.phase !== 'over'; guard++) {
     switch (s.phase) {
       case 'card':
