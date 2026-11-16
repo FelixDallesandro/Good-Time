@@ -11,9 +11,11 @@
  * - Earned release: RCW 9.94A.729. Up to 10% for serious violent offenses (none in this game), one-third for every
  *   other case; none at all on firearm or deadly weapon enhancements (2)(a), or child passenger enhancements (2)(b).
  *
- * - A drug offense committed inside a jail or prison (RCW 9.94A.533(5)): +18 months on delivery of methamphetamine or a
- *   narcotic (69.50.401(2)(a)/(b)), +15 on other schedules. A felony committed while under sentence for a felony
- *   runs consecutively: the new term starts when every prior term ends (RCW 9.94A.589(2)(a)).
+ * - New charges for what happens inside (from the designer's account): prosecutors do not charge introduction for a
+ *   phone or for drugs. They charge assaults, and first-degree assault where there was a weapon, but not always.
+ *   Assault 1 (RCW 9A.36.011) is level XII and a serious violent offense; assault 2 (9A.36.021) is level IV; both
+ *   are strikes. A felony committed while under sentence for a felony runs consecutively: the new term starts when
+ *   every prior term ends (RCW 9.94A.589(2)(a)).
  *
  * The facts of the arrest (game odds, rolled at intake): running from the arrest adds a count of attempting to elude
  * (RCW 46.61.024) with the endangerment allegation; a gun on a robbery turns the deadly weapon into a firearm
@@ -50,6 +52,7 @@ const parse = (row: string): Range[] =>
 
 /** RCW 9.94A.510, levels I to X; offender score 0 to 9+. [low, high, low is "and a day"] */
 const FELONY: Record<number, Range[]> = {
+  12: parse('93-123 102-136 111-147 120-160 129-171 138-184 162-216 178-236 209-277 240-318'),
   10: parse('51-68 57-75 62-82 67-89 72-96 77-102 98-130 108-144 129-171 149-198'),
   9: parse('31-41 36-48 41-54 46-61 51-68 57-75 77-102 87-116 108-144 129-171'),
   8: parse('21-27 26-34 31-41 36-48 41-54 46-61 67-89 77-102 87-116 108-144'),
@@ -74,7 +77,7 @@ export function range(grid: Grid, level: number, score: number): Range {
   return row[i];
 }
 
-export const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+export const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 
 export interface Enhancement { label: string; months: number; flat: boolean }
 const DEADLY_A: Enhancement = { label: 'deadly weapon enhancement (class A)', months: 24, flat: true };
@@ -226,22 +229,22 @@ export function sentenceFor(
   return { path, sheet, enhs, extra, score, range: r, base, enhMonths, months, earnedMax: Math.floor((months - flat) / 3) };
 }
 
-/** The new case if DOC refers a trafficking finding to the prosecutor. */
-export const INSIDE_CASE = {
-  offense: 'Delivery of methamphetamine', rcw: '69.50.401(2)(b)', grid: 'drug' as Grid, level: 2,
-  enh: { label: 'enhancement for a drug offense in a state correctional facility', months: 18, flat: false } as Enhancement
-};
+const ASSAULT_1: Sheet = { offense: 'Assault in the first degree', rcw: '9A.36.011', grid: 'felony', level: 12, counts: 1, strike: true };
+const ASSAULT_2: Sheet = { offense: 'Assault in the second degree', rcw: '9A.36.021', grid: 'felony', level: 4, counts: 1, strike: true };
 
 /**
- * Sentence for a delivery inside. Every count on the current judgment is now a prior conviction (simplified score).
- * The deal drops the enhancement (game), the same leverage as the arrest facts; trial is the top of the range plus it.
+ * The new case if an assault finding is referred to the prosecutor. With a weapon, they file assault 1 and the deal
+ * comes down to assault 2 (game, the same overcharge as the case that brought you in); without, assault 2 either way.
  */
-export function insideSentence(priorPoints: number, path: Path, caseBad: boolean[]): { range: Range; base: number; enhMonths: number; months: number; score: number } {
-  const r = range(INSIDE_CASE.grid, INSIDE_CASE.level, priorPoints);
-  const trial = path === 'trial';
-  const base = trial ? r.high : Math.round(r.low + (r.high - r.low) * dealPosition(caseBad));
-  const enhMonths = trial ? INSIDE_CASE.enh.months : 0;
-  return { range: r, base, enhMonths, months: base + enhMonths, score: priorPoints };
+export const insideCase = (weapon: boolean): { trial: Sheet; deal: Sheet } =>
+  weapon ? { trial: ASSAULT_1, deal: ASSAULT_2 } : { trial: ASSAULT_2, deal: ASSAULT_2 };
+
+/** Sentence on the new case. Every count on the current judgment is now a prior conviction (simplified score). */
+export function insideSentence(priorPoints: number, path: Path, caseBad: boolean[], weapon: boolean): { sheet: Sheet; range: Range; months: number; score: number } {
+  const sheet = insideCase(weapon)[path];
+  const r = range(sheet.grid, sheet.level, priorPoints);
+  const months = path === 'trial' ? r.high : Math.round(r.low + (r.high - r.low) * dealPosition(caseBad));
+  return { sheet, range: r, months, score: priorPoints };
 }
 
 /** At least this many turns are served, even with every day of earned release; long sentences are compressed. */

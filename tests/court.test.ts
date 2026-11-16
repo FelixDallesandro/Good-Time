@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BACKGROUNDS, CHARGES } from '../src/engine/content';
 import { beginSentence, choose, newCaseCard, chooseCourt, clock, draftPick, newGame, refuseOffer, releaseMonth, syncBoxes, TREATMENT_MISSES } from '../src/engine/engine';
-import { CASES, FACTS, INSIDE_CASE, insideSentence, MIN_TURNS, range, sentenceFor, timeScale, type Fact } from '../src/content/sentencing';
+import { CASES, FACTS, insideSentence, MIN_TURNS, range, sentenceFor, timeScale, type Fact } from '../src/content/sentencing';
 import type { Game } from '../src/engine/types';
 import { playGame } from '../src/engine/autoplay';
 
@@ -192,13 +192,17 @@ describe('the facts of the arrest', () => {
   });
 });
 
-describe('a drug offense inside (RCW 9.94A.533(5))', () => {
-  it('adds 18 months at trial, drops it on the deal, and reads the drug grid', () => {
-    const deal = insideSentence(4, 'deal', [true, true]);
-    const trial = insideSentence(4, 'trial', [true, true]);
-    expect(deal.range).toMatchObject({ low: 20, high: 60 });
-    expect(trial.months).toBe(60 + INSIDE_CASE.enh.months);
-    expect(deal.enhMonths).toBe(0);
+describe('an assault inside, referred for prosecution', () => {
+  it('reads level XII for assault 1 and comes down to assault 2 on the deal', () => {
+    expect(range('felony', 12, 0)).toMatchObject({ low: 93, high: 123 });
+    const trial = insideSentence(4, 'trial', [true, true], true);
+    const deal = insideSentence(4, 'deal', [true, true], true);
+    expect(trial.sheet.offense).toBe('Assault in the first degree');
+    expect(trial.months).toBe(171);
+    expect(deal.sheet.offense).toBe('Assault in the second degree');
+    expect(deal.months).toBe(20);
+    const plain = insideSentence(4, 'trial', [true, true], false);
+    expect(plain.sheet.level).toBe(4);
   });
   it('a new case runs consecutive: no release act, and the epilogue knows', () => {
     const g = draftPick(newGame('harlan', 3), { chargeId: 'delivery', backgroundId: 'b3', outsideId: 'mother', name: 'T' });
@@ -206,7 +210,7 @@ describe('a drug offense inside (RCW 9.94A.533(5))', () => {
     s.cur = { card: newCaseCard(s) } as Game['cur'];
     s.phase = 'card';
     s = choose(s, 'deal');
-    expect(Number(s.flags.newMonths)).toBeGreaterThanOrEqual(12);
+    expect(Number(s.flags.newMonths)).toBeGreaterThan(0);
     expect(s.flags.newCaseAt).toBeUndefined();
   });
   it('whole games with a referral end on the hold, not at the gate', () => {
@@ -215,14 +219,14 @@ describe('a drug offense inside (RCW 9.94A.533(5))', () => {
       const s = playGame(seed, { flags: { newCaseAt: 3 } });
       if (s.ending !== 'released') continue; // protective custody or a medical: no date to hold
       checked++;
-      expect(Number(s.flags.newMonths)).toBeGreaterThanOrEqual(12);
+      expect(Number(s.flags.newMonths)).toBeGreaterThan(0);
       expect(s.phase).toBe('over');
       expect(s.release).toBeFalsy();
     }
     expect(checked).toBeGreaterThanOrEqual(3);
     // charged too late to plead before the date: the plea happens on the hold
     const late = [9, 10, 11, 12, 13].map((n) => playGame(n, { flags: { newCaseAt: 99 } })).find((x) => x.ending === 'released')!;
-    expect(Number(late.flags.newMonths)).toBeGreaterThanOrEqual(12);
+    expect(Number(late.flags.newMonths)).toBeGreaterThan(0);
     expect(late.release).toBeFalsy();
   });
 });

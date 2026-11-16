@@ -4,7 +4,7 @@ import {
 } from './content';
 import { d, next, pickN, shuffle } from './rng';
 import { flaggedWords } from '../content/keywords';
-import { CASES, FACTS, INSIDE_CASE, fmtMonths, fmtRange, insideSentence, sentenceFor, timeScale, type Fact, type Offer, type Path } from '../content/sentencing';
+import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, insideSentence, sentenceFor, timeScale, type Fact, type Offer, type Path } from '../content/sentencing';
 import { TOPICS, compose, replyContext, type Topic } from './replies';
 import {
   GENERAL_SANCTIONS, NO_WEIGHTS, PETTY, PHONE_LOSS, SEG_CODES, SERIOUS_SANCTIONS, TRAFFICKING_GCT, violation
@@ -1198,8 +1198,10 @@ function addBoxes(s: Game, n: number) {
  * Take the deal or go to trial. The deal is the reduced sheet at the agreed number, and you tell what you know. Trial
  * is the top of the range on everything charged. Either way, the real months become turns: at least 12 served.
  */
-/** Game odds that a trafficking finding (665) is referred for a new felony charge. */
-export const REFERRAL_ODDS = 0.5;
+/** Assault findings that can be referred for a new felony. Not phones, not drugs (the designer's account). */
+const ASSAULT_CODES = ['633', '502'];
+/** Game odds of a referral: assaults are charged, but not always; more often with a weapon. */
+export const REFERRAL_ODDS = { plain: 0.25, weapon: 0.5 };
 
 /** Points for the new case: priors, plus every count on the judgment you are serving now. */
 function insidePoints(s: Game) {
@@ -1209,23 +1211,30 @@ function insidePoints(s: Game) {
 export function newCaseCard(s: Game): Card {
   const bad = background(s.char!.backgroundId).case.map((c) => c.bad);
   const pts = insidePoints(s);
-  const deal = insideSentence(pts, 'deal', bad);
-  const trial = insideSentence(pts, 'trial', bad);
+  const weapon = !!s.flags.newCaseWeapon;
+  const deal = insideSentence(pts, 'deal', bad, weapon);
+  const trial = insideSentence(pts, 'trial', bad, weapon);
   return {
     id: 'new_case', kind: 'prompt', title: 'New Charges',
-    text: `Legal mail. The county has charged you: ${INSIDE_CASE.offense} (RCW ${INSIDE_CASE.rcw}), with an ${INSIDE_CASE.enh.label}, ${INSIDE_CASE.enh.months} months (RCW 9.94A.533(5)). ` +
-      `Offender score ${pts}, every count you are serving now included: standard range ${fmtRange(deal.range)}. ` +
+    text: `Legal mail. The county has charged you with ${trial.sheet.offense.toLowerCase()} (RCW ${trial.sheet.rcw}), level ${ROMAN[trial.sheet.level]}, a strike. ` +
+      `Offender score ${pts}, every count you are serving now included: standard range ${fmtRange(trial.range)}. ` +
+      (weapon ? 'Assault in the first degree is a serious violent offense: earned release is 10%, not a third. ' : '') +
       'Whatever you get starts the day this sentence ends (RCW 9.94A.589(2)(a)). You see the lawyer for twenty minutes on a video screen.',
     choices: [
-      { id: 'deal', label: `Take the deal: ${fmtMonths(deal.months)}`, text: 'They drop the enhancement. You sign.', effect: { newCase: 'deal' } },
-      { id: 'trial', label: `Go to trial: ${fmtMonths(trial.months)}`, text: 'The top of the range, and the enhancement on top of that.', effect: { newCase: 'trial' } }
+      {
+        id: 'deal', label: `Take the deal: ${fmtMonths(deal.months)}`,
+        text: weapon ? 'They come down to assault in the second degree. Still a strike. You sign.' : 'An agreed number. Still a strike. You sign.',
+        effect: { newCase: 'deal' }
+      },
+      { id: 'trial', label: `Go to trial: ${fmtMonths(trial.months)}`, text: 'Everything charged, at the top of the range.', effect: { newCase: 'trial' } }
     ]
   };
 }
 
 function newCaseStep(s: Game, path: 'deal' | 'trial') {
-  const sen = insideSentence(insidePoints(s), path, background(s.char!.backgroundId).case.map((c) => c.bad));
+  const sen = insideSentence(insidePoints(s), path, background(s.char!.backgroundId).case.map((c) => c.bad), !!s.flags.newCaseWeapon);
   s.flags.newMonths = sen.months;
+  s.flags.newCaseLevel = sen.sheet.level;
   if (path === 'trial') s.flags.newTrial = true;
   delete s.flags.newCaseAt;
   L(s, `${path === 'trial' ? 'Convicted at trial' : 'You plead'}: ${fmtMonths(sen.months)}, consecutive. Your release date is now the first day of the next sentence.`);
@@ -1992,9 +2001,13 @@ function seriousSanction(s: Game, h: Hearing, plea: 'guilty' | 'contest') {
     s.flags.ppm = true;
     L(s, 'You have no good time left to lose. The hearing officer refers you for prosecution: Persistent Prison Misbehavior. A single act can bring both discipline and a criminal charge.');
   }
-  if (h.code === '665' && !s.flags.newCaseAt && !s.flags.newMonths && next(s) < REFERRAL_ODDS) {
-    s.flags.newCaseAt = s.m + 1;
-    L(s, 'The finding is referred to the county prosecutor. The same act can bring discipline here and a new felony out there.');
+  if (ASSAULT_CODES.includes(h.code) && !s.flags.newCaseAt && !s.flags.newMonths) {
+    const weapon = !!s.flags.shank || h.code === '502';
+    if (next(s) < (weapon ? REFERRAL_ODDS.weapon : REFERRAL_ODDS.plain)) {
+      s.flags.newCaseAt = s.m + 1;
+      if (weapon) s.flags.newCaseWeapon = true;
+      L(s, 'The finding is referred to the county prosecutor. The same act can bring discipline here and a new felony out there.');
+    }
   }
   const days = h.code === '665' ? TRAFFICKING_GCT : take(tbl.gct[tier]);
   if (days > 0 && !s.flags.stopped) {
