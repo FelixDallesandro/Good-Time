@@ -2111,7 +2111,7 @@ function moveCustody(s: Game, to: Move) {
   const f = facility(to.facility);
   s.custody = to.custody;
   s.facilityId = to.facility;
-  s.baseBoxes = f.boxes;
+  // earned release comes from the sentence, not the facility: the boxes travel with you
   syncBoxes(s);
   return f;
 }

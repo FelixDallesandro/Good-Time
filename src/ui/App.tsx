@@ -156,30 +156,98 @@ function Notice(p: { onOk: () => void; onBack: () => void }) {
 function Rules(p: { onBack: () => void }) {
   return (
     <div className="panel">
-      <h2>The whole rulebook fits on one card</h2>
-      <h3>Two tracks</h3>
-      <p><b>Calendar.</b> Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high. Take the deal (a reduced charge at an agreed number), turn down the first offer and hope for a better one, or go to trial (the top of the range on everything charged). If there's someone to tell on, telling buys the bottom of the range, and it can come out later. Earned release can take up to a third off, never the time on a weapon enhancement. Each empty good-time box is a turn of earned release; each turn without a serious violation fills one. You walk out at your sentence minus your filled boxes. A serious violation can take good time for good. Every sentence plays at least 12 turns; long ones are compressed, and the clock shows the real months. What happened at the arrest can stack more on: running from the police, a gun, a child in the car. An assault finding inside can be referred to the prosecutor, not always, and a new sentence starts the day this one ends.</p>
-      <p><b>Treatment.</b> Everyone is assessed, and every assessment finds a substance use disorder that needs treatment. Late in your sentence, group comes around. Get terminated from the program and you serve to your max date, good time or not.</p>
-      <p><b>Standing.</b> How the yard sees you, 0 to 5. Keeping the code raises it; breaking it lowers it. At 0 you are a target.</p>
-      <p className="dim">The institution controls your Calendar. The yard controls your Standing. Almost every choice trades one for the other.</p>
-      <h3>Support</h3>
-      <p><b>Support</b> is the people outside who still have you, 0 to 3. Each of them is a real person: some can visit, some can only write, and a child can only come with the adult who brings them. When someone leaves, their visits and their letters stop. With no one, you write in a notebook no one reads.</p>
-      <p>A new visitor waits on the visitor application, about two months. An extended family visit is a separate program: you need six visits in the last twelve months before you can apply, and the decision takes two to six months. Any serious violation suspends it for six months, and then you start over.</p>
-      <h3>One roll: the Eyes</h3>
-      <p>When you break a rule, count the dice on you. Blue for officers, white for prisoners, gray for cameras, red for rumors pinned to you. Any 6 means you're caught. One 6 is usually written as a <b>general</b> infraction, two or more as a <b>serious</b> one, and some acts are always serious. You always see the dice before you act. The risk is never hidden, only the result.</p>
-      <p className="dim">Staff roll behind a screen and tell you only "clean" or "caught." You never learn which die did it.</p>
-      <p><b>General</b> infractions (WAC 137-28-220) cost privileges, extra duty, and confinement, never good time or visits. But four of them inside ninety days is a serious: 657. While you are on loss of privileges, going out to the yard is itself a serious, 658, and the yard does not always let you stay in.</p>
-      <p><b>Serious</b> infractions go to a hearing. Plead guilty and the sanction is usually lighter, but you give up the appeal. Contest it and you will almost certainly lose. Sanctions follow DOC 460.050: good time by category, privileges, confinement, and mandatory sanctions like two years off the weight pile for a fight.</p>
-      <p><b>Custody</b> follows a score (DOC 300.380). Every serious takes points off it: 20 for a Category A, 15 for an assault, 10 for other Category B, 5 for C or D. Each month without a serious adds a programming point. Every six months a Plan Change Review moves you one custody level at a time: below 40 is Close, 40 to 55 Medium, 56 and up Minimum. Lose 20 points in one review period and a review team looks at demoting you sooner. Sometimes the facility overrides the score either way and keeps you where you are.</p>
-      <p><b>Administrative segregation</b> (DOC 320.200) takes you off the unit for up to thirty days. A fight always brings it. So can a riot or a demonstration. And a lieutenant can place anyone the facility sees as a threat, pending an investigation nobody explains.</p>
-      <h3>Routine</h3>
-      <p>Every month makes the place more ordinary. Lockdown, confinement, seg, and loss of privileges make it faster; a visit or a real message slows it. Nothing stops it. As it grows, your name gives way to your DOC number, some months are nothing but count, and some things you used to do stop occurring to you.</p>
+      <h2>How to play</h2>
+      <p>Serve your sentence and walk out on your release date. The institution runs your calendar. The yard runs your standing. Almost every choice trades one for the other. Two rulebooks, both enforced, neither fair.</p>
+
+      <h3>Draft a life</h3>
+      <p>Choose a facility, then keep one card from each of three hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your priors (your offender score) and a case history you don't see until the end. Your <b>Outside</b> card sets the people who still have you.</p>
+      <p>Everything else is rolled: four stats and your failings. Each stat runs from −2 to +2.</p>
+      <ul>
+        <li><b>Nerve</b> backs your threats.</li>
+        <li><b>Hustle</b> stretches a deal.</li>
+        <li><b>Cool</b> takes white dice off your rolls.</li>
+        <li><b>Heart</b> at +1 or more gives you an extra message each month.</li>
+      </ul>
+      <p>Your <b>public card</b> is what the yard knows. Your <b>private card</b> holds your real name, what actually happened, and a secret. If three rumors about that secret get pinned to you, the card turns face up and you lose 2 Standing.</p>
+
+      <h3>The court</h3>
+      <p>Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high so the deal would sound good. You have three choices:</p>
+      <ul>
+        <li><b>Take the deal:</b> a reduced charge at an agreed number.</li>
+        <li><b>Turn down the first offer:</b> the next one might be better, the same, or worse.</li>
+        <li><b>Go to trial:</b> the top of the range on everything charged.</li>
+      </ul>
+      <p>What happened at the arrest can add time: running from the police, a gun, a child in the car. Trial carries all of it. If there was a codefendant or a ring, you can tell what you know for the bottom of the range. It goes in the transcripts, and it can come out on the yard later.</p>
+
+      <h3>The calendar</h3>
+      <p>Each turn on the calendar is a stretch of real time; the clock shows the months. Every sentence plays at least 12 turns, and long ones are compressed. Earned release can take up to a third off your sentence, but never the time on a weapon or child passenger enhancement. That third is your row of good-time boxes. Each turn without a serious infraction fills one, and you walk out at your sentence minus your filled boxes.</p>
+      <p>A serious infraction can take good time away for good, which lowers how many boxes you can ever fill. Once, you can choose to <b>stop counting days</b>. Every box is erased and you serve the full sentence, but you gain 2 Standing and write-ups can't cost you good time anymore.</p>
+      <p><b>Treatment.</b> Everyone is assessed, and every assessment finds a substance use disorder. Late in your sentence, group comes around. Get terminated from the program and you serve to your max date, good time or not.</p>
+
+      <h3>What you carry</h3>
+      <ul>
+        <li><b>Standing</b> (0 to 5) is how the yard sees you. Keeping the code raises it; breaking it lowers it. At 0 you are a target: the yard comes at you, and you get two scenes a month instead of one.</li>
+        <li><b>Support</b> (0 to 3) is the people outside who still have you. Each one is a real person.</li>
+        <li><b>Commissary</b> is what's on your books: food, trades, and debts.</li>
+        <li><b>Conspicuity</b> is how the facility looks at you, from your charge, your background, and whether staff have validated you. It adds officer dice to searches and to discretionary rules like disrespect, being out of bounds, or refusing a directive.</li>
+        <li><b>Custody</b> is your score and level: Close, Medium, or Minimum. More below.</li>
+      </ul>
+
+      <h3>A month</h3>
+      <ol>
+        <li><b>Count.</b> A count card names the officer on shift and their mood.</li>
+        <li><b>Whatever finds you.</b> Your Pull, group, legal mail, a rumor, a cellie.</li>
+        <li><b>Your scene.</b> Usually one; two at Standing 0. Lockdown or confinement to cell gives you one, in your cell. Seg gives you none.</li>
+        <li><b>The Eyes.</b> Staff roll for anything you did, and any serious infraction goes to a hearing.</li>
+        <li><b>Visiting and messages.</b></li>
+      </ol>
+      <p>Between scenes you can play your <b>moves</b>. Your Line Home and Code moves are spent when used; the Anyone moves come back.</p>
+
+      <h3>The Pull</h3>
+      <p>Your charge comes with a Pull, and some failings add another. A Pull is never a choice: when it comes up, you roll a d6. On 1 to 4 you give in. Each tally mark lowers that number by one, and priors raise it by one. Walk past and you make a tally. Three tallies and you tear it up for good.</p>
+
+      <h3>The Eyes</h3>
+      <p>When you break a rule, count the dice on you: blue for officers, white for prisoners, red for every rumor pinned to you. You see those before you act. You don't see the gray dice, the cameras, and Close custody always has one more of them.</p>
+      <p>At the end of the month, staff roll behind a screen and tell you only "clean" or "caught." Any 6 means you're caught. One 6 is usually written as a <b>general</b> infraction, two or more as a <b>serious</b> one, and some acts are always serious.</p>
+      <p>Some write-ups need no roll at all. A kite to the bubble can name what you did, and an officer can write you up because they decided to.</p>
+
+      <h3>Discipline</h3>
+      <p><b>General</b> infractions (WAC 137-28-220) cost privileges, extra duty, and confinement, never good time or visits. But four of them inside ninety days is a serious: 657. While you're on loss of privileges, going out to the yard is itself a serious, 658, and the yard doesn't always let you stay in.</p>
+      <p><b>Serious</b> infractions go to a hearing. Plead guilty and the sanction is usually lighter, but you give up the appeal. Contest it and you'll almost certainly lose; you can appeal to the Superintendent, and that almost never works either. Sanctions follow DOC 460.050: good time by category, loss of privileges, confinement, and mandatory sanctions like two years off the weight pile for a fight. Any serious also suspends extended family visits for six months.</p>
+      <p><b>Custody</b> follows a score (DOC 300.380). Every serious takes points off: 20 for a Category A, 15 for an assault, 10 for other Category B, 5 for C or D. Each turn without a serious adds a point back. Every six turns a Plan Change Review can move you one level at a time: below 40 is Close, 40 to 55 Medium, 56 and up Minimum. Lose 20 points in one review period and a review team looks at demoting you sooner. Sometimes the facility overrides the score either way.</p>
+      <p><b>Administrative segregation</b> (DOC 320.200) takes you off the unit for up to thirty days. A fight always brings it. A lieutenant can also place anyone the facility sees as a threat, pending an investigation nobody explains. Go to seg from the workers tier and you lose the job.</p>
+      <p><b>New charges.</b> An assault finding can be referred to the county prosecutor, though not always. With a weapon it's assault in the first degree. A new sentence starts the day this one ends.</p>
+
+      <h3>The yard</h3>
+      <p>Rumors, debts, and leverage go up on the tier board. You can:</p>
+      <ul>
+        <li><b>Deny a rumor</b> (−1 Standing).</li>
+        <li><b>Confess your secret</b> before it comes out (−1 Standing instead of −2).</li>
+        <li><b>Pay a debt</b> for 6 commissary.</li>
+        <li><b>Cut a leverage string</b> for 5 commissary, and they'll remember it.</li>
+      </ul>
+      <p>With Support, you can stay in your cell instead of playing a scene; do it twice in an act and the yard notices. With no Support you have nothing to lose. Once an act you can lean on someone who does, or take a charge for him.</p>
+      <p>If you told what you know, your paperwork can come out. Cellies ask for your J&amp;S on every move, and it lists only your charges. Sometimes that's enough. Protective custody is always a way off the yard, and it ends the game.</p>
+
       <h3>Who you become</h3>
       <p>The way you meet trouble sticks. Fight, tell, go to your car, or back down: repeat one and the yard learns it, and going against it costs Standing. Keep repeating it and the other ways close for good. A slow stretch without it can wear a habit down. A locked one almost never lets go.</p>
-      <h3>A month</h3>
-      <p>Count card → your scenes → the Eyes and any hearings → visiting and messages. On the tablet you pick who to write and a subject, and you write to them. Send nothing but a subject and they notice. Replies come the next month, and staff read everything, both ways. In the epilogue, your messages are read next to your public card.</p>
-      <h3>What to expect</h3>
-      <p>Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
+      <p><b>Routine.</b> Every month makes the place more ordinary. Lockdown, confinement, seg, and loss of privileges speed it up. A visit or a real message slows it, but nothing stops it. As it grows, your name gives way to your DOC number, some months are nothing but count, and some things you used to do stop occurring to you.</p>
+
+      <h3>Outside</h3>
+      <p>Each person on your Outside card is real. Some can visit, some can only write, and a child can only come with the adult who brings them. A new visitor waits about two months on the visitor application. When someone leaves, their visits and their messages stop.</p>
+      <p>When a visit comes, you choose what it's for: money on your books, or steadying yourself, which takes one rumor off you. They strip you out after every visit, so fresh ink or marks from a fight can become a write-up.</p>
+      <p>An extended family visit is a separate program for immediate family. You need six visits in the last twelve months before you can apply, and the decision takes two to six months.</p>
+      <p><b>Messages.</b> On the tablet you pick who to write and a subject, and write what you want. Send nothing but a subject and they notice. Replies come the next month. Staff read everything, both ways. Some words hold a message in review, and nobody tells you which. A message can be rejected: you can appeal one that was sent to you, but not one you sent. With no one left, you write in a notebook no one reads.</p>
+
+      <h3>The end</h3>
+      <p>Release day, the gate, the first night, the first week. Then the epilogue opens everything that was face down:</p>
+      <ul>
+        <li>your case history, next to every other background's on your charge</li>
+        <li>the ledger of every roll</li>
+        <li>your messages, read next to your public card</li>
+        <li>what the numbers say about coming back</li>
+      </ul>
+      <p className="dim"><b>Count Time</b>, in the corner, rewinds your last decision. Use it freely. Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
       <button className="primary" onClick={p.onBack}>Back</button>
     </div>
   );
