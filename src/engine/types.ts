@@ -473,7 +473,7 @@ export interface Court {
 }
 
 export interface Game {
-  v: 4;
+  v: 5;
   rng: number;
   phase: Phase;
   custody: Custody;
@@ -569,8 +569,36 @@ export interface Game {
     caught: number;
   };
   ending: Ending | null;
+  /** Every decision the player made, in order: the demo epilogue lists the ones made before the game played itself. */
+  decisions: Decision[];
+  /** Demo mode: the player ended here and the rest was played out for them. */
+  demo?: DemoCut | null;
   /** Reception at Washington Corrections Center: the classification that placed you, and who was still there. */
   intake?: Intake | null;
+}
+
+export interface Decision {
+  m: number;
+  /** The card or moment: "Court", a yard card's title, a hearing. */
+  what: string;
+  choice: string;
+  /** What the choice said it would cost, as the player read it. */
+  cost?: string;
+}
+
+/** Where the player stopped in demo mode, and how things stood at that moment. */
+export interface DemoCut {
+  m: number;
+  decisions: number;
+  infractions: number;
+  letters: number;
+  ledger: number;
+  standing: number;
+  support: number;
+  boxes: number;
+  maxBoxes: number;
+  routine: number;
+  stats: Game['stats'];
 }
 
 export interface Intake {

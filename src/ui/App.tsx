@@ -9,6 +9,7 @@ import {
   stopCounting, submitLetters, tieActive, toMail, visitingTies, MESSAGE_LIMIT
 } from '../engine/engine';
 import { TOPICS, correspondents, topicsFor } from '../engine/replies';
+import { endDemo } from '../engine/autoplay';
 import { violation } from '../content/violations';
 import { SOURCES, WA_ALL, WA_BY_CUSTODY, WA_PRIOR, estimate, rateFor } from '../content/recidivism';
 import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../content/sentencing';
@@ -19,12 +20,22 @@ import type { Choice, Game, OutMsg } from '../engine/types';
 
 const SAVE = 'goodtime.save.v3';
 const SEEN = 'goodtime.notice.v1';
+const DEMO = 'goodtime.demo';
+
+/** Demo mode is a per-device setting for presentations: an "End the demo" bar on every screen of a sentence. */
+function demoSetting(): boolean {
+  try {
+    return localStorage.getItem(DEMO) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function loadSave(): Game | null {
   try {
     const t = localStorage.getItem(SAVE);
     const g = t ? (JSON.parse(t) as Game) : null;
-    return g && g.v === 4 ? g : null;
+    return g && g.v === 5 ? g : null;
   } catch {
     return null;
   }
@@ -54,6 +65,16 @@ export function App() {
   const [game, setGame] = useState<Game | null>(null);
   const [prev, setPrev] = useState<Game | null>(null);
   const [cards, setCards] = useState(false);
+  const [demo, setDemo] = useState(demoSetting);
+  const toggleDemo = () => {
+    const on = !demo;
+    setDemo(on);
+    try {
+      localStorage.setItem(DEMO, on ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
   const saved = useMemo(loadSave, [screen]);
 
   const act = (fn: (g: Game) => Game) => {
@@ -95,6 +116,8 @@ export function App() {
             setScreen('game');
           }}
           onRules={() => setScreen('rules')}
+          demo={demo}
+          onDemo={toggleDemo}
         />
       )}
       {screen === 'notice' && (
@@ -112,7 +135,10 @@ export function App() {
       )}
       {screen === 'rules' && <Rules onBack={() => setScreen('title')} />}
       {screen === 'game' && game && (
-        <GameView g={game} act={act} countTime={countTime} canRewind={!!prev} onQuit={quit} onCards={() => setCards(true)} onAgain={start} />
+        <>
+          {demo && game.phase !== 'over' && <DemoBar onEnd={() => act((g) => endDemo(g))} />}
+          <GameView g={game} act={act} countTime={countTime} canRewind={!!prev} onQuit={quit} onCards={() => setCards(true)} onAgain={start} />
+        </>
       )}
       {cards && game?.char && (
         <div className="modal" onClick={() => setCards(false)}>
@@ -128,7 +154,7 @@ export function App() {
 
 /* ---------------------------------------------------------------- */
 
-function Title(p: { canContinue: boolean; onNew: () => void; onContinue: () => void; onRules: () => void }) {
+function Title(p: { canContinue: boolean; onNew: () => void; onContinue: () => void; onRules: () => void; demo: boolean; onDemo: () => void }) {
   return (
     <div className="splash">
       <div className="bars"><i /><i /><i /><i /><i /><i /><i /></div>
@@ -139,6 +165,10 @@ function Title(p: { canContinue: boolean; onNew: () => void; onContinue: () => v
       <button className="primary" onClick={p.onNew}>New sentence</button>
       {p.canContinue && <button onClick={p.onContinue}>Continue</button>}
       <button className="ghost" onClick={p.onRules}>How to play</button>
+      <button className="ghost small" onClick={p.onDemo} aria-pressed={p.demo}>
+        Demo mode: {p.demo ? 'on' : 'off'}
+      </button>
+      {p.demo && <p className="dim small">For presentations. You can end any sentence early: the game plays out the rest the careful way, and the epilogue shows your decisions apart from the ones made for you.</p>}
     </div>
   );
 }
@@ -259,8 +289,27 @@ function Rules(p: { onBack: () => void }) {
         <li>your messages, read next to your public card</li>
         <li>what the numbers say about coming back</li>
       </ul>
+      <p className="dim"><b>Demo mode</b>, on the title screen, is for presentations: end any sentence early, and the epilogue shows your decisions apart from the ones the game made after.</p>
       <p className="dim"><b>Count Time</b>, in the corner, rewinds your last decision. Use it freely. Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
       <button className="primary" onClick={p.onBack}>Back</button>
+    </div>
+  );
+}
+
+/** Demo mode: end now. Two taps, so a stray one doesn't cost a presenter the run. */
+function DemoBar({ onEnd }: { onEnd: () => void }) {
+  const [sure, setSure] = useState(false);
+  return (
+    <div className="demobar">
+      <span className="small dim">Demo mode</span>
+      {sure ? (
+        <span className="row" style={{ gap: 6 }}>
+          <button className="small primary" onClick={() => { setSure(false); onEnd(); }}>Play out the rest and show the epilogue</button>
+          <button className="small ghost" onClick={() => setSure(false)}>Keep playing</button>
+        </span>
+      ) : (
+        <button className="small" onClick={() => setSure(true)}>End the demo</button>
+      )}
     </div>
   );
 }
@@ -819,7 +868,10 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
   const yours = consp(g);
   const sent = sentencingRows(ch.chargeId);
   const tornPulls = Object.values(g.pull).filter((x) => x.torn).length;
-  const s = g.stats;
+  // in demo mode, the notes speak to what the player did, not what the simulation did after
+  const s = g.demo?.stats ?? g.stats;
+  const cut = g.demo;
+  const simulated = (i: number, at?: number) => !!cut && at !== undefined && i >= at;
   const notes: string[] = [];
   if (s.putInWork) notes.push('You put in work. The yard stopped testing you. The file never forgot, and it never will.');
   if (s.informed >= 2) notes.push('The yard says you talk. The file says you cooperated. Only one of them was keeping count.');
@@ -877,15 +929,16 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
         : 'At the gate: no one. You leave with a bus ticket and whatever is on your books.';
   if (g.flags.newMonths) notes.push('The prosecutor took the same act the hearing officer already punished, and made it a new sentence. One act, punished twice: once by the hearing officer, once by the court.');
   if (g.flags.ppm) notes.push('You walked out with a referral for prosecution behind you: Persistent Prison Misbehavior. The sentence was not the end of it.');
-  const file = g.infractions.filter((x) => x.result !== 'not_guilty');
+  const file = g.infractions.map((x, i) => ({ ...x, sim: simulated(i, cut?.infractions) })).filter((x) => x.result !== 'not_guilty');
 
-  const all = g.letters.flatMap((l) => l.lines.map((ln) => ({ ...ln, m: l.m, notebook: l.notebook })));
+  const all = g.letters.flatMap((l, li) => l.lines.map((ln) => ({ ...ln, m: l.m, notebook: l.notebook, sim: simulated(li, cut?.letters) })));
   const delivered = all.filter((l) => l.status !== 'held');
   const held = all.filter((l) => l.status === 'held');
   const anyNotebook = g.letters.some((l) => l.notebook);
 
   return (
     <>
+      {cut && <DemoDecisions g={g} />}
       <div className="panel">
         <h1 style={{ fontSize: '1.8rem' }}>{headline}</h1>
         <p className="dim">Everyone gets released. The question is what kind of person the sentence made you.</p>
@@ -908,8 +961,8 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
           <div>
             <div className="small dim" style={{ marginBottom: 6 }}>{anyNotebook && g.support === 0 ? 'What you wrote in your notebook' : 'What you sent home'}</div>
             {delivered.map((t, i) => (
-              <div key={`d${i}`} className="letter">
-                <span className="small">Month {t.m}{t.notebook ? ' · notebook' : ''}{t.to ? ` · to ${t.to} · ${t.subject}` : ''}</span>
+              <div key={`d${i}`} className={`letter${t.sim ? ' sim' : ''}`}>
+                <span className="small">Month {t.m}{t.sim ? ' · simulated' : ''}{t.notebook ? ' · notebook' : ''}{t.to ? ` · to ${t.to} · ${t.subject}` : ''}</span>
                 <br />
                 {t.text || <span className="dim">(subject only)</span>}{STATUS_NOTE[t.status as 'sent' | 'delayed']}
                 {t.flagged && <div className="small dim">Flagged by the facility keyword list: {t.flagged.join(', ')}. "Interpretation of policy."</div>}
@@ -967,8 +1020,8 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
         <h3>Your file</h3>
         {!file.length && <p className="dim">Nothing in your central file. That is rare.</p>}
         {file.map((x, i) => (
-          <div key={i} className="line small">
-            Month {x.m}: {x.code} {violation(x.code).title} · {x.result === 'onsite' ? 'handled on site' : x.serious ? `serious${x.plea === 'guilty' ? ', pled guilty' : ', contested'}${x.days ? `, ${x.days} days good time` : ''}${x.appeal ? `, appeal ${x.appeal}` : ''}` : x.result === 'reduced' ? 'reduced to a general' : 'general'}
+          <div key={i} className={`line small${x.sim ? ' sim' : ''}`}>
+            Month {x.m}{x.sim ? ' (simulated)' : ''}: {x.code} {violation(x.code).title} · {x.result === 'onsite' ? 'handled on site' : x.serious ? `serious${x.plea === 'guilty' ? ', pled guilty' : ', contested'}${x.days ? `, ${x.days} days good time` : ''}${x.appeal ? `, appeal ${x.appeal}` : ''}` : x.result === 'reduced' ? 'reduced to a general' : 'general'}
             {x.discretionary ? <span className="dim"> · the officer's call</span> : ''}
           </div>
         ))}
@@ -1025,9 +1078,9 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
         <p className="small dim">Background never changes what a character can do. It only changes how many blue dice the institution rolls.</p>
         <details>
           <summary className="small">Every roll that was made</summary>
-          {g.ledger.filter((e) => !e.forced).map((e, i) => (
-            <div key={i} className="line small">
-              Month {e.m}: {e.title} · {Math.max(0, e.blueNo + (e.applies ? e.consp : 0)) + e.white + e.gray + e.rumor} dice
+          {g.ledger.map((e, i) => ({ e, i })).filter(({ e }) => !e.forced).map(({ e, i }) => (
+            <div key={i} className={`line small${simulated(i, cut?.ledger) ? ' sim' : ''}`}>
+              Month {e.m}{simulated(i, cut?.ledger) ? ' (simulated)' : ''}: {e.title} · {Math.max(0, e.blueNo + (e.applies ? e.consp : 0)) + e.white + e.gray + e.rumor} dice
               {e.applies ? <span className="dim"> (discretionary: Conspicuity counted)</span> : ''} ·{' '}
               <span className={e.caught ? 'caught' : 'clean'}>{e.caught ? 'caught' : 'clean'}</span>
             </div>
@@ -1044,13 +1097,101 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
 }
 
 /**
+ * Demo mode: the player's own decisions, apart from the ones the game made after they ended, and talking points drawn
+ * from those decisions only. Built for a presenter with a few minutes.
+ */
+function DemoDecisions({ g }: { g: Game }) {
+  const cut = g.demo!;
+  const ch = g.char!;
+  const bg = background(ch.backgroundId);
+  const mine = (g.decisions ?? []).slice(0, cut.decisions);
+  const after = (g.decisions ?? []).length - cut.decisions;
+  const st = cut.stats;
+  const played = cut.m ? Math.round((cut.m - 1) * (g.perTurn || 1)) : 0;
+  const total = Math.round(g.sentence * (g.perTurn || 1));
+  const lvl = routineLevel({ ...g, routine: cut.routine });
+  const myFile = g.infractions.slice(0, cut.infractions).filter((x) => x.result !== 'not_guilty');
+  const officerCalls = myFile.filter((x) => x.discretionary).length;
+  const laterFile = g.infractions.slice(cut.infractions).filter((x) => x.result !== 'not_guilty').length;
+  const court = mine.find((d) => d.what === 'Court');
+  const sent = sentencingRows(ch.chargeId);
+  const myRow = sent.rows.find((r) => r.id === bg.id);
+  const when = (d: { m: number; what: string }) => (d.what === 'Draft' || d.what === 'Court' ? 'Before sentencing' : `Month ${d.m}`);
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+  const styles = [
+    st.letGo && `let ${plural(st.letGo, 'thing')} go`,
+    st.fights && `fought ${plural(st.fights, 'time')}`,
+    st.informed && `told ${plural(st.informed, 'time')}`,
+    st.putInWork && 'put in work'
+  ].filter(Boolean);
+  const pulls = st.pullGiven + st.pullWalked;
+
+  const points = [
+    {
+      theme: 'Institutionalization',
+      text: !cut.m
+        ? 'You ended before the first month inside. The routine never had a chance to start.'
+        : `${played ? `In about ${plural(played, 'month')}` : 'In the first month'} of a ${total}-month sentence, ` +
+          (lvl >= 3 ? `you were already answering to ${ch.docNumber} before your name.` : lvl >= 1 ? 'the routine had started to settle in.' : 'the routine had not set in yet. Ask what a year would do.') +
+          ` Support when you stopped: ${cut.support} of 3.`
+    },
+    {
+      theme: 'Compromise',
+      text: !mine.length
+        ? 'You ended before making a decision. Every option ahead of you would have cost something: good time with staff, Standing with the yard, or a person outside.'
+        : `You made ${plural(mine.length, 'decision')}${styles.length ? `: you ${styles.join(', ')}` : ''}. ` +
+        (court ? `At court you ${court.choice.charAt(0).toLowerCase() + court.choice.slice(1)}${court.cost ? `, for ${court.cost.replace(/\.$/, '')}` : ''}. ` : '') +
+        (pulls ? `Your Pull came up ${plural(pulls, 'time')}, and ${st.pullGiven ? `you gave in ${plural(st.pullGiven, 'time')}` : 'you walked past it every time'}. That one was never yours to choose: it is rolled. ` : '') +
+        'Which of these had a good option? What did each one cost, and with whom: staff, the yard, or the people outside?'
+    },
+    {
+      theme: 'Disparity',
+      text: (myRow ? `Your background's deal on this charge was ${myRow.months} months. ` : '') +
+        `Across all ${sent.rows.length} backgrounds, the same deal averaged ${sent.white.toFixed(1)} months for the white ones and ${sent.others.toFixed(1)} for everyone else. ` +
+        `${plural(myFile.length, 'write-up')} landed while you were playing${officerCalls ? `, ${officerCalls} of them the officer's call` : ''}. Your Conspicuity was ${sign(consp(g))}: the same choices roll more dice for some characters.`
+    }
+  ];
+
+  return (
+    <div className="panel">
+      <h2>Your decisions</h2>
+      <p>
+        {cut.m ? `You played to ${clock(g, cut.m)} and ended the demo.` : 'You ended the demo before the sentence began.'} The game played out the rest the
+        careful way: it takes whatever option looks cheapest, every time. Only the decisions below are yours.
+      </p>
+      <div className="decisions">
+        {mine.map((d, i) => (
+          <div key={i} className="line small">
+            <span className="dim">{when(d)} · {d.what}:</span> <b>{d.choice}</b>
+            {d.cost && <span className="dim"> ({d.cost})</span>}
+          </div>
+        ))}
+        {!mine.length && <p className="dim small">No decisions yet. Everything below was played for you.</p>}
+      </div>
+
+      <h3>Talking points</h3>
+      {points.map((p) => (
+        <p key={p.theme}><b>{p.theme}.</b> {p.text}</p>
+      ))}
+
+      <p className="small dim">
+        After you ended, the game made {plural(after, 'more decision')} for you and {laterFile ? `took ${plural(laterFile, 'more write-up')}` : 'took no more write-ups'}.
+        Everything it did is marked as simulated below. The epilogue's other notes speak to your decisions, not to its.
+      </p>
+    </div>
+  );
+}
+
+/**
  * What the game is for, said once, after play. Like Papers, Please, it hopes the message arrived through the choices
  * before it arrives in words. Each aim points back to this run, then to the research.
  */
 function AboutTheGame({ g }: { g: Game }) {
   const ch = g.char!;
   const bg = background(ch.backgroundId);
-  const s = g.stats;
+  const s = g.demo?.stats ?? g.stats;
+  const yourFile = g.infractions.slice(0, g.demo?.infractions ?? g.infractions.length).filter((x) => x.result !== 'not_guilty');
   const served = Math.round(g.m * (g.perTurn || 1));
   const lvl = routineLevel(g);
   const choices = s.letGo + s.fights + s.informed + s.putInWork + s.pullGiven + s.pullWalked;
@@ -1091,9 +1232,9 @@ function AboutTheGame({ g }: { g: Game }) {
         The rulebook punishes the one act that makes the yard leave you alone.
       </p>
       <p className="small">
-        The game counted {choices} of those choices from you{s.letGo ? `: you let ${s.letGo} thing${s.letGo === 1 ? '' : 's'} go` : ''}
+        The game counted {choices} of those choices from you{g.demo ? ' before you ended the demo' : ''}{s.letGo ? `: you let ${s.letGo} thing${s.letGo === 1 ? '' : 's'} go` : ''}
         {s.fights ? `, fought ${s.fights} time${s.fights === 1 ? '' : 's'}` : ''}{s.informed ? `, told ${s.informed} time${s.informed === 1 ? '' : 's'}` : ''}
-        {s.putInWork ? ', put in work' : ''}. Your file holds {g.infractions.filter((x) => x.result !== 'not_guilty').length} write-ups. What the yard kept, it never wrote down.
+        {s.putInWork ? ', put in work' : ''}. {g.demo ? 'In the months you played, your file took' : 'Your file holds'} {yourFile.length} write-up{yourFile.length === 1 ? '' : 's'}. What the yard kept, it never wrote down.
       </p>
 
       <h3>3. The same act does not cost everyone the same time</h3>

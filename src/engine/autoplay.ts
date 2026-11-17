@@ -74,20 +74,29 @@ export interface PlayOpts {
   classify?: boolean;
 }
 
-export function playGame(seed: number, opts: PlayOpts = {}): Game {
-  const policy = opts.policy ?? careful;
-  let s = newGame(opts.facilityId ?? 'harlan', seed);
-  s = draftPick(s, {
-    chargeId: s.draft!.charges[0] ?? CHARGES[0].id,
-    backgroundId: s.draft!.backgrounds[0] ?? BACKGROUNDS[0].id,
-    outsideId: s.draft!.outsides[0] ?? OUTSIDES[0].id,
-    name: 'Test'
-  });
-  if (opts.inject) s.yardDeck = [...opts.inject, ...s.yardDeck];
-  if (opts.court) s = chooseCourt(s, opts.court.path, opts.court.talk);
-  if (opts.classify) s = classify(s);
-  s = beginSentence(s);
-  if (opts.flags) Object.assign(s.flags, opts.flags);
+/**
+ * Demo mode: the player ends here. Whatever phase this is, the rest of the sentence is played out the careful way, and
+ * the moment is recorded so the epilogue can tell the player's decisions from the ones made for them.
+ */
+export function endDemo(g: Game, name = 'You'): Game {
+  if (g.phase === 'over') return g;
+  let s: Game = structuredClone(g);
+  s.decisions ??= [];
+  s.demo = {
+    m: s.phase === 'draft' || s.phase === 'sheet' || s.phase === 'reception' ? 0 : s.m,
+    decisions: s.decisions.length, infractions: s.infractions.length, letters: s.letters.length, ledger: s.ledger.length,
+    standing: s.standing, support: s.support, boxes: s.boxes, maxBoxes: s.maxBoxes, routine: s.routine, stats: { ...s.stats }
+  };
+  if (s.phase === 'draft')
+    s = draftPick(s, { chargeId: s.draft!.charges[0], backgroundId: s.draft!.backgrounds[0], outsideId: s.draft!.outsides[0], name });
+  if (s.phase === 'sheet') s = classify(s);
+  if (s.phase === 'reception') s = beginSentence(s);
+  return finishGame(s, careful);
+}
+
+/** Plays a sentence in progress to the end with a policy. */
+export function finishGame(g: Game, policy: Policy = careful): Game {
+  let s = g;
   for (let guard = 0; guard < 5000 && s.phase !== 'over'; guard++) {
     switch (s.phase) {
       case 'card':
@@ -114,6 +123,23 @@ export function playGame(seed: number, opts: PlayOpts = {}): Game {
     }
   }
   return s;
+}
+
+export function playGame(seed: number, opts: PlayOpts = {}): Game {
+  const policy = opts.policy ?? careful;
+  let s = newGame(opts.facilityId ?? 'harlan', seed);
+  s = draftPick(s, {
+    chargeId: s.draft!.charges[0] ?? CHARGES[0].id,
+    backgroundId: s.draft!.backgrounds[0] ?? BACKGROUNDS[0].id,
+    outsideId: s.draft!.outsides[0] ?? OUTSIDES[0].id,
+    name: 'Test'
+  });
+  if (opts.inject) s.yardDeck = [...opts.inject, ...s.yardDeck];
+  if (opts.court) s = chooseCourt(s, opts.court.path, opts.court.talk);
+  if (opts.classify) s = classify(s);
+  s = beginSentence(s);
+  if (opts.flags) Object.assign(s.flags, opts.flags);
+  return finishGame(s, policy);
 }
 
 /** The doc's "keep your head down": no rolls, no informing, no fighting, no threats. Let it go. */

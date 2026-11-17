@@ -28,7 +28,7 @@ The game deals with violence, racism, drug use, debt and coercion, and it says s
 
 ## How a sentence goes
 
-1. **Draft a life.** You name your character, then keep one charge and one background. The background sets your age and your priors. Your Outside card (the people who still have you), your stats, your failings and your schooling are dealt or rolled. Schooling (a diploma, a GED, or neither) has to fit the background: work that asks for a diploma or equivalent always rolls one. Without either, you're placed in GED class and can't hold a job inside until you pass.
+1. **Draft a life.** You name your character, then keep one charge and one background. The background sets your age and your priors. Your Outside card (the people who still have you), your stats, your failings and your schooling are dealt or rolled. Schooling (a diploma, a GED, or neither) has to fit the background: work that asks for a diploma or equivalent always rolls one. Without either, you're placed in GED class (about a year) and can't hold a job inside until you pass.
 2. **Court.** The sentence comes from the Washington sentencing grid: the seriousness level against your offender score. You can take the deal, turn down the first offer, or go to trial. What happened at the arrest can add enhancements. If there was a codefendant, you can tell what you know.
 3. **Reception.** Everyone starts at Washington Corrections Center. There are three steps:
    - The interview records your Support.
@@ -58,6 +58,12 @@ The game deals with violence, racism, drug use, debt and coercion, and it says s
 
 The in-game **How to play** page is the full rulebook.
 
+### Demo mode
+
+For a presentation with limited time, turn on **Demo mode** on the title screen. An **End the demo** bar then sits above every screen of a sentence; tap it twice to end. The game plays out the rest the careful way (it takes whatever option looks cheapest) and opens the epilogue.
+
+The epilogue then opens with **Your decisions**: every decision you made, in order, with what each one said it would cost. The rolled Pull and one-option cards aren't counted. Below them are three talking points (institutionalization, compromise, disparity) drawn only from your decisions and the months you played. Everything the game did after you ended (write-ups, messages, rolls) is marked as simulated.
+
 ## Sources
 
 The rules cite their sources in the game, and the epilogue lists them. The main ones:
@@ -67,7 +73,7 @@ The rules cite their sources in the game, and the epilogue lists them. The main 
 - **Washington ONE:** the WSIPP 2020 evaluation and DOC's 2026 Family Council slides.
 - **Disparity research:** the U.S. Sentencing Commission (2023); Washington's Task Force on Race and the Criminal Justice System (2012); the *New York Times*' "The Scourge of Racial Bias in New York State's Prisons" (2016); the New York State Inspector General (2022).
 
-Some numbers had to be invented to make a game. They are labeled as game numbers in [src/content/](src/content/). For example, the ICD crime categories in [classification.ts](src/content/classification.ts) are provisional, and so are the schooling odds and the six months of GED class.
+Some numbers had to be invented to make a game. They are labeled as game numbers in [src/content/](src/content/). For example, the ICD crime categories in [classification.ts](src/content/classification.ts) are provisional, and so are the schooling odds.
 
 ## Develop
 
@@ -76,7 +82,7 @@ TypeScript and React. There are no image assets. Node 20 or later.
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 131 tests: rules, decks, court, intake, routine, replies, UI render
+npm test           # 134 tests: rules, decks, court, intake, routine, replies, UI render
 npm run build      # type-check, then build the static site into dist/
 npm run sim        # balance simulation, 3,000 sentences per strategy per facility
 npx tsx scripts/discipline-sim.ts   # how discipline, visits and EFVs play out over whole sentences

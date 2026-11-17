@@ -127,3 +127,9 @@ tr.you td { color: var(--amber); font-weight: 700; }
 
 .compose { border-top: 1px solid var(--line, #333); padding-top: 10px; margin-top: 10px; }
 .compose select { margin-left: 4px; max-width: 100%; }
+
+/* Demo mode */
+.demobar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0 8px; margin-bottom: 8px; border-bottom: 1px dashed var(--line); }
+.decisions { max-height: 22rem; overflow-y: auto; }
+.decisions .line { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.sim { opacity: 0.55; }

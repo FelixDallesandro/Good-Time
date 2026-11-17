@@ -220,7 +220,7 @@ function emptyMonth(officer: Officer): Month {
 export function newGame(facilityId: string, seed: number): Game {
   const f = facility(facilityId);
   const s: Game = {
-    v: 4, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, court: null, perTurn: 1,
+    v: 5, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, court: null, perTurn: 1,
     treatment: { sessions: 0, need: TREATMENT_SESSIONS, misses: 0, failed: false, done: false }, added: 0, m: 1, lastAct: '',
     char: null, cellieId: '', draft: null, standing: f.startStanding, support: 0, ties: [], boxes: 0, maxBoxes: f.boxes,
     baseBoxes: f.boxes, gctLost: 0, classPoints: 0, crsBase: f.crs, progPoints: 0, infractions: [], hearings: [], lopUntil: 0, segUntil: 0, segPlacements: [], confinedUntil: 0,
@@ -229,7 +229,7 @@ export function newGame(facilityId: string, seed: number): Game {
     flags: {}, usedMoves: {}, pull: {}, privateFlipped: false, blueOnce: 0, blueNext: 0, extraLines: 0,
     skipNext: 0, visitPending: false, visitRisk: null, pendingBreaks: [], visitBanMonth: 0, visitBanAct: '', marks: 0,
     missionsDrawn: 0, monthly: [], deferred: [], yardDeck: [], yardDiscard: [], countDeck: [], queue: [],
-    cur: null, result: null, mo: emptyMonth(OFFICERS[0]), letters: [], outbox: [], inbox: [], rejections: [], routine: 0, release: null, ledger: [], report: [], lines: [],
+    cur: null, result: null, mo: emptyMonth(OFFICERS[0]), letters: [], outbox: [], inbox: [], rejections: [], routine: 0, release: null, ledger: [], decisions: [], report: [], lines: [],
     actUsed: {}, groove: newGroove(), stats: { letGo: 0, fights: 0, informed: 0, putInWork: 0, pullGiven: 0, pullWalked: 0, caught: 0 },
     ending: null, intake: null
   };
@@ -309,6 +309,7 @@ export function draftPick(
     docNumber: docNumberFor(s, bg.priorDoc ? bg.age : null),
     education: rollEducation(s, !!bg.credential)
   };
+  decide(s, 'Draft', `Kept ${ch.name.toLowerCase()} and the background "${bg.front.split('.')[0]}"`);
   rollFacts(s);
   setCourt(s, 'deal');
   // been down before: the place is not new, and the number is not new either
@@ -364,8 +365,15 @@ function shuffleIn(s: Game, id: string) {
   s.yardDeck.splice(at, 0, id);
 }
 
+/** Count cards that only mean something if they can touch you. One that can't goes to the bottom of the deck. */
+function countApplies(s: Game, id: string): boolean {
+  if (id === 'visiting_closed') return visitingTies(s).length > 0; // a closed room costs nothing to someone nobody visits
+  return true;
+}
+
 function drawCount(s: Game): Card {
   if (!s.countDeck.length) s.countDeck = shuffle(s, [...COUNT.keys()]);
+  for (let i = 0; i < s.countDeck.length && !countApplies(s, s.countDeck[0]); i++) s.countDeck.push(s.countDeck.shift()!);
   return clone(COUNT.get(s.countDeck.shift()!)!);
 }
 
@@ -508,6 +516,11 @@ export function pullCard(s: Game, def: PullDef): Card {
 function showNext(s: Game) {
   const card = s.queue.shift();
   if (!card) return enterHub(s);
+  // things change inside a month: if the people a count card would touch are gone by now, it goes back in the deck
+  if (card.kind === 'count' && COUNT.has(card.id) && !countApplies(s, card.id)) {
+    s.countDeck.push(card.id);
+    return showNext(s);
+  }
   if (card.rule === 'property' && s.commissary <= 10) {
     card.choices = undefined;
     card.text += ' You are under the limit. Nothing happens.';
@@ -702,6 +715,7 @@ export function playMove(g: Game, id: string): Game {
   const s = clone(g);
   s.lines = [];
   if (entry.kind !== 'anyone') s.usedMoves[id] = true;
+  decide(s, 'Move', entry.card.title);
   s.cur = { card: clone(entry.card), source: 'move' };
   s.phase = 'card';
   return s;
@@ -817,6 +831,8 @@ export function choose(g: Game, id: string): Game {
 
   const ch = cardChoices(card).find((c) => c.id === id);
   if (!ch || lockReason(s, ch)) return g;
+  // a decision has more than one way to go; the Pull is rolled, never chosen
+  if (cardChoices(card).length > 1 && ch.special !== 'pullRoll' && cur.source !== 'threat') decide(s, card.title, ch.label, ch.text);
 
   if (card.id === 'on_sheet' && cur.origin) {
     const orig = YARD.get(cur.origin)!;
@@ -1234,6 +1250,10 @@ export function classify(g: Game): Game {
   s.lines = [];
   const bg = background(s.char!.backgroundId);
   const sheet = CASES[s.char!.chargeId][s.court!.path];
+  const c = s.court!;
+  decide(s, 'Court',
+    `${c.path === 'trial' ? 'Went to trial' : c.offer !== 'first' ? 'Turned down the first offer, then took the deal' : 'Took the deal'}${c.talked ? ', and told what you knew' : ''}`,
+    `${fmtMonths(c.months)}${c.path === 'trial' ? ', the top of the range on everything charged' : ''}.`);
 
   // family and community support (I.C.4): the county jail already cost you some of them
   const held = !!bg.case[1]?.bad;
@@ -1430,6 +1450,11 @@ export function setCourt(s: Game, path: Path, talk = false, offer: Offer = s.cou
 }
 
 /** Choose at intake, before the sentence begins. Talking is only on the table where there is someone to tell on. */
+/** Writes down a decision the player made. */
+function decide(s: Game, what: string, choice: string, cost?: string) {
+  (s.decisions ??= []).push({ m: s.m, what, choice, ...(cost ? { cost } : {}) });
+}
+
 export function chooseCourt(g: Game, path: Path, talk = false): Game {
   if (g.phase !== 'sheet' || !g.char || !CASES[g.char.chargeId]) return g;
   const s = clone(g);
@@ -2041,6 +2066,7 @@ export function stopCounting(g: Game): Game {
   const s = clone(g);
   s.lines = [];
   s.flags.stopped = true;
+  decide(s, 'Stop counting days', 'Stopped counting', 'Every box erased; +2 Standing.');
   syncBoxes(s);
   L(s, 'You stop counting days. Every box is erased: you will serve your full sentence.');
   addStanding(s, 2);
@@ -2315,6 +2341,7 @@ export function plead(g: Game, how: 'guilty' | 'contest'): Game {
   s.lines = [];
   const h = s.hearings.shift()!;
   const v = violation(h.code);
+  decide(s, `Hearing: ${h.code}, ${v.title}`, how === 'guilty' ? 'Pled guilty' : 'Contested it');
   L(s, `Disciplinary hearing: ${h.code}, ${v.title}. ${s.segUntil > s.m ? 'You are in segregation, so it comes within three business days. ' : ''}A lieutenant hears it, on the record. ${how === 'guilty' ? 'You plead guilty.' : 'You plead not guilty and ask for your witnesses.'}`);
   if (how === 'contest') {
     const r = next(s);
@@ -2642,6 +2669,7 @@ export function chooseVisit(g: Game, which: 'money' | 'steady' | 'stayHome'): Ga
   const s = clone(g);
   s.lines = g.lines.slice();
   s.visitPending = false;
+  decide(s, 'Visit', which === 'money' ? 'Money on your books' : which === 'steady' ? 'Steadied yourself' : 'Told them to stay home');
   const risk = s.visitRisk;
   s.visitRisk = null;
   if (which === 'stayHome') {
@@ -2951,6 +2979,7 @@ export function advanceRelease(g: Game, choiceId: string): Game {
   if (!card || !pick) return g;
   const s = clone(g);
   s.release!.picks[card.title] = pick.label;
+  decide(s, card.title, pick.label);
   s.release!.step += 1;
   if (s.release!.step >= RELEASE_STEPS) s.phase = 'over';
   return s;
