@@ -260,9 +260,10 @@ export interface Background {
   case: CaseLine[];
   /** Offender score from prior adult felonies (RCW 9.94A.525, one point each: simplified). */
   score: number;
-  /** Highest credential: a high school diploma, a GED, or neither. Washington ONE's Education need turns on it. */
-  education: 'diploma' | 'ged' | 'none';
+  /** The work on the front asks for a high school diploma or equivalent, so education always rolls one. */
+  credential?: boolean;
 }
+export type Education = 'diploma' | 'ged' | 'none';
 export interface Outside {
   id: string;
   who: string;
@@ -320,6 +321,8 @@ export interface Character {
   claim: string;
   /** Six digits, issued at intake. Stamped on everything you own, the back of every photo included. */
   docNumber: string;
+  /** Rolled at the draft, within what the background allows. A GED earned inside changes it. */
+  education: Education;
 }
 
 export interface Break {
@@ -470,7 +473,7 @@ export interface Court {
 }
 
 export interface Game {
-  v: 3;
+  v: 4;
   rng: number;
   phase: Phase;
   custody: Custody;

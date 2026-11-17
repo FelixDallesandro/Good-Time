@@ -4,8 +4,9 @@ import {
 } from './content';
 import { d, next, pickN, shuffle } from './rng';
 import { flaggedWords } from '../content/keywords';
-import { CATEGORY_POINTS, ICD_BASE, ICD_DEDUCT, ICD_ODDS, MI3_MONTHS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, TIE_LOSS, icdBand, waOne } from '../content/classification';
+import { CATEGORY_POINTS, ICD_BASE, ICD_DEDUCT, ICD_ODDS, MI3_MONTHS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, TIE_LOSS, icdBand, waOne, EDUCATION_ODDS, GED_MONTHS } from '../content/classification';
 import type { NeedLevel } from '../content/classification';
+import type { Education } from './types';
 import { CHARGE_CATEGORY } from '../content/recidivism';
 import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, insideSentence, sentenceFor, timeScale, type Fact, type Offer, type Path } from '../content/sentencing';
 import { TOPICS, compose, replyContext, type Topic } from './replies';
@@ -219,7 +220,7 @@ function emptyMonth(officer: Officer): Month {
 export function newGame(facilityId: string, seed: number): Game {
   const f = facility(facilityId);
   const s: Game = {
-    v: 3, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, court: null, perTurn: 1,
+    v: 4, rng: seed | 0, phase: 'draft', custody: f.custody, facilityId, sentence: 12, court: null, perTurn: 1,
     treatment: { sessions: 0, need: TREATMENT_SESSIONS, misses: 0, failed: false, done: false }, added: 0, m: 1, lastAct: '',
     char: null, cellieId: '', draft: null, standing: f.startStanding, support: 0, ties: [], boxes: 0, maxBoxes: f.boxes,
     baseBoxes: f.boxes, gctLost: 0, classPoints: 0, crsBase: f.crs, progPoints: 0, infractions: [], hearings: [], lopUntil: 0, segUntil: 0, segPlacements: [], confinedUntil: 0,
@@ -305,7 +306,8 @@ export function draftPick(
     stats, failings,
     conspBase: conspFacts(s.facilityId, ch.id, bg.id).total,
     privateTag, knownOfficer, claim: ch.claim,
-    docNumber: docNumberFor(s, bg.priorDoc ? bg.age : null)
+    docNumber: docNumberFor(s, bg.priorDoc ? bg.age : null),
+    education: rollEducation(s, !!bg.credential)
   };
   rollFacts(s);
   setCourt(s, 'deal');
@@ -447,6 +449,7 @@ function startMonth(s: Game) {
   s.mo.efvNow = efvNow && !seg;
   if (lvl >= 4 && !seg && !efvNow && next(s) < 0.3) s.mo.blank = true;
   s.mo.seg = seg;
+  gedMonth(s, seg, confined, first.id === 'class_canceled');
   if (confined) {
     s.mo.lockdown = true;
     s.mo.confined = true;
@@ -715,6 +718,7 @@ function rawLock(s: Game, ch: Choice, failings: boolean): string | null {
   if (ch.forbidden && statMod(s, ch.forbidden.stat) <= ch.forbidden.max) return `Your ${ch.forbidden.stat} is too low`;
   if (ch.needs?.commissary && s.commissary < ch.needs.commissary) return `Needs ${ch.needs.commissary} commissary`;
   if (ch.needs?.support && s.support < ch.needs.support) return `Needs Support ${ch.needs.support}`;
+  if (ch.effect?.job && s.char?.education === 'none') return 'Needs a GED first';
   if (ch.tag === 'violent' && s.hurt) return "You're hurt";
   if (ch.phone && s.phoneUntil >= s.m) return 'Phone privileges restricted';
   // what the place has made ordinary closes some doors without anyone locking them
@@ -1286,7 +1290,7 @@ export function assessNeeds(s: Game): Record<string, NeedLevel> {
   const general = s.infractions.filter((i) => !i.serious && i.result !== 'not_guilty').length;
   const r: Record<string, NeedLevel> = {
     Residential: adults >= 2 ? 'Low' : adults === 1 ? 'Mod' : 'High',
-    Education: s.char ? (background(s.char.backgroundId).education === 'none' ? 'High' : 'Low') : null,
+    Education: s.char ? (s.char.education === 'none' ? 'High' : 'Low') : null,
     Employment: s.job ? 'Low' : 'Mod',
     'Social Influences': lvl((has(s, 'affiliated') ? 2 : 0) + (s.strings.some((x) => x.type === 'debt') ? 1 : 0)),
     'Substance Abuse': s.treatment.done ? 'Mod' : has(s, 'habit') || s.treatment.need > 0 ? 'High' : 'Low',
@@ -1295,6 +1299,27 @@ export function assessNeeds(s: Game): Record<string, NeedLevel> {
     'Attitudes & Behaviors': lvl(serious + (general >= 2 ? 1 : 0))
   };
   return Object.fromEntries(NEED_DOMAINS.map((d) => [d, r[d]]));
+}
+
+function rollEducation(s: Game, credential: boolean): Education {
+  const odds = EDUCATION_ODDS[credential ? 'credential' : 'open'];
+  const r = next(s);
+  return r < odds.diploma ? 'diploma' : r < odds.diploma + odds.ged ? 'ged' : 'none';
+}
+
+/** Without a diploma or GED you are placed in GED class. Seg, confinement, and a canceled class stall it. */
+function gedMonth(s: Game, seg: boolean, confined: boolean, canceled: boolean) {
+  if (s.char?.education !== 'none') return;
+  if (seg || confined || canceled) {
+    if (!seg) L(s, canceled ? 'No GED class this month.' : 'Confined to cell: no GED class this month.');
+    return;
+  }
+  const done = Number(s.flags.gedMonths ?? 0) + (s.perTurn || 1);
+  s.flags.gedMonths = done;
+  if (done >= GED_MONTHS) {
+    s.char.education = 'ged';
+    L(s, 'You pass the last GED test. The certificate comes in the institutional mail, with your DOC number on it. You can hold a job now.');
+  } else if (done === (s.perTurn || 1)) L(s, "You are placed in GED class. Without a diploma or GED, you can't hold a job inside.");
 }
 
 /** Every six real months until release: a new interview. The needs move; the risk level is frozen (norming period). */

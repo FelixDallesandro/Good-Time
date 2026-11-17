@@ -108,3 +108,14 @@ export const TIE_LOSS = { held: 0.3, home: 0.1 };
 
 /** Game: a pen pal listing. What it costs from your books, how long it runs, and the monthly odds a stranger writes. */
 export const PEN_PAL = { cost: 4, months: 12, odds: 0.15, max: 2 };
+
+/**
+ * Schooling, rolled at the draft. Game odds. A background whose work asks for a diploma or equivalent never rolls
+ * neither. Without one, you're placed in GED class, and you need the GED before you can hold a job inside.
+ */
+export const EDUCATION_ODDS = {
+  open: { diploma: 0.5, ged: 0.2, none: 0.3 },
+  credential: { diploma: 0.75, ged: 0.25, none: 0 }
+} as const;
+/** Real months of class to pass the GED tests (game). Seg, confinement to cell, and a canceled class don't count. */
+export const GED_MONTHS = 6;

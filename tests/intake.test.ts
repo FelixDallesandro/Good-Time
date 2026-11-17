@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BACKGROUNDS, CHARGES } from '../src/engine/content';
-import { beginSentence, classify, draftPick, listingActive, newGame, postProfile, chooseCourt } from '../src/engine/engine';
-import { ICD_BASE, PEN_PAL, icdBand, waOne } from '../src/content/classification';
+import { beginSentence, classify, draftPick, listingActive, lockReason, newGame, postProfile, chooseCourt } from '../src/engine/engine';
+import { GED_MONTHS, ICD_BASE, PEN_PAL, icdBand, waOne } from '../src/content/classification';
 import { CASES } from '../src/content/sentencing';
 import { COMMUNITY_CUSTODY } from '../src/content/reentry';
 import type { Game } from '../src/engine/types';
@@ -79,18 +79,44 @@ describe('reception (DOC 310.150)', () => {
       const r = classify(intake('burglary', 'b3', seed)).intake!;
       expect(Object.keys(r.needs)).toHaveLength(8);
       const end = playGame(seed, { classify: true });
-      if (!end.intake) continue;
+      if (!end.intake || (end.m - 1) * end.perTurn < 6) continue; // over before the first six months (e.g. PC)
       expect(Number(end.flags.waOneSeen ?? 0)).toBeGreaterThan(0);
       expect(Object.keys(end.intake.needs)).toHaveLength(8);
     }
   });
 
-  it('rates Education on a high school diploma or GED', () => {
-    const edu = (bg: string) => classify(intake('burglary', bg)).intake!.needs.Education;
-    for (const bg of BACKGROUNDS) expect(['diploma', 'ged', 'none']).toContain(bg.education);
-    expect(edu('b3')).toBe('High');   // no diploma or GED
-    expect(edu('b12')).toBe('Low');   // GED
-    expect(edu('b9')).toBe('Low');    // diploma
+  it('rolls schooling within what the background allows, and rates Education on it', () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const bg of BACKGROUNDS) {
+        const s = classify(intake('burglary', bg.id, seed));
+        const e = s.char!.education;
+        seen.add(e);
+        if (bg.credential) expect(e).not.toBe('none');
+        expect(s.intake!.needs.Education).toBe(e === 'none' ? 'High' : 'Low');
+      }
+    }
+    expect([...seen].sort()).toEqual(['diploma', 'ged', 'none']);
+  });
+
+  it('needs a GED before a job, and GED class earns one', () => {
+    const job = { id: 'x', label: 'Take it', text: '', effect: { job: true } } as never;
+    let gated = 0, inClass = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const s = beginSentence(classify(intake('burglary', 'b3', seed)));
+      if (s.char!.education === 'none') { expect(lockReason(s, job)).toBe('Needs a GED first'); gated++; }
+      else expect(lockReason(s, job)).toBeNull();
+    }
+    for (let seed = 1; seed <= 150; seed++) {
+      const end = playGame(seed, { classify: true });
+      const months = Number(end.flags.gedMonths ?? 0);
+      if (!months) continue;
+      inClass++;
+      expect(end.char!.education).toBe(months >= GED_MONTHS ? 'ged' : 'none');
+      if (end.char!.education === 'none') expect(end.job).toBe(false);
+    }
+    expect(gated).toBeGreaterThan(0);
+    expect(inClass).toBeGreaterThan(0);
   });
 
   it('begins the sentence from reception', () => {

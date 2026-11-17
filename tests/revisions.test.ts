@@ -582,6 +582,7 @@ describe('grooves', () => {
     for (let i = 0; i < 6; i++) s = continueResult(pick(s, 'fight'));
     expect(s.groove.locked).toBe('force');
     s.groove.force = 4; // below tier 2 but above the break point: it stays locked
+    s.hurt = false; // six fights can leave you hurt, which locks a seventh
     s = continueResult(pick(s, 'fight'));
     expect(s.groove.force).toBe(5);
     expect(s.groove.locked).toBe('force');

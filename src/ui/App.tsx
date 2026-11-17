@@ -14,7 +14,7 @@ import { SOURCES, WA_ALL, WA_BY_CUSTODY, WA_PRIOR, estimate, rateFor } from '../
 import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../content/sentencing';
 import { CONDITIONS, GRE, communityCustody } from '../content/reentry';
 import { POLICY, RESEARCH } from '../content/research';
-import { CONTACTS, CONTACTS_HOMELESS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, WA_ONE_APPEAL_DAYS } from '../content/classification';
+import { CONTACTS, CONTACTS_HOMELESS, GED_MONTHS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, WA_ONE_APPEAL_DAYS } from '../content/classification';
 import type { Choice, Game, OutMsg } from '../engine/types';
 
 const SAVE = 'goodtime.save.v3';
@@ -24,7 +24,7 @@ function loadSave(): Game | null {
   try {
     const t = localStorage.getItem(SAVE);
     const g = t ? (JSON.parse(t) as Game) : null;
-    return g && g.v === 3 ? g : null;
+    return g && g.v === 4 ? g : null;
   } catch {
     return null;
   }
@@ -163,8 +163,8 @@ function Rules(p: { onBack: () => void }) {
       <p>Serve your sentence and walk out on your release date. The institution runs your calendar. The yard runs your standing. Almost every choice trades one for the other. Two rulebooks, both enforced, neither fair.</p>
 
       <h3>Draft a life</h3>
-      <p>Name yourself, then keep one card from each of two hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your age, your schooling (a diploma, a GED, or neither), your priors (your offender score), and a case history you don't see until the end.</p>
-      <p>Everything else is dealt or rolled. Your <b>Outside</b> card, the people who still have you, is dealt: nobody chooses who waits for them. Then come four stats and your failings. Each stat runs from −2 to +2.</p>
+      <p>Name yourself, then keep one card from each of two hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your age, your priors (your offender score), and a case history you don't see until the end.</p>
+      <p>Everything else is dealt or rolled. Your <b>Outside</b> card, the people who still have you, is dealt: nobody chooses who waits for them. Then come four stats, your failings, and your schooling: a diploma, a GED, or neither, within what your background allows. Work that asks for a diploma or equivalent rolls one. Without either, you're placed in GED class, and you can't hold a job inside until you pass. Each stat runs from −2 to +2.</p>
       <ul>
         <li><b>Nerve</b> backs your threats.</li>
         <li><b>Hustle</b> stretches a deal.</li>
@@ -735,7 +735,7 @@ function Draft(p: { g: Game; act: Act; onQuit: () => void }) {
         return (
           <button key={id} className={`choice ${b === id ? 'sel' : ''}`} onClick={() => setB(id)}>
             <b>{bg.front}</b>
-            <span className="small">Offender score from priors: {bg.score} · {EDUCATION[bg.education]}{bg.priorDoc ? ' · Been down before: arrives with a DOC number' : ''}</span>
+            <span className="small">Offender score from priors: {bg.score}{bg.priorDoc ? ' · Been down before: arrives with a DOC number' : ''}</span>
           </button>
         );
       })}
@@ -765,6 +765,7 @@ function CharacterCards({ g }: { g: Game }) {
         <h3>Public card</h3>
         <h2>{displayName(g)}</h2>
         <p>{bg.front}</p>
+        <p className="small"><b>Schooling.</b> {EDUCATION[ch.education] ?? EDUCATION.none}{ch.education === 'none' ? `. GED class: ${Math.min(GED_MONTHS, Number(g.flags.gedMonths ?? 0))} of ${GED_MONTHS} months. No job inside until you pass.` : '.'}</p>
         <p><b>{chg.name}.</b> {ch.claim}</p>
         <p className="small dim">At {g.phase === 'draft' || g.phase === 'sheet' || g.phase === 'reception' ? 'county jail, then reception' : fac.name} · Sentence {g.court ? fmtMonths(g.court.months) : `${g.sentence} months`} · Standing {g.standing} · Support {g.support}</p>
         {publicFailings.map((f) => <p key={f.id} className="small"><b>{f.name}.</b> {f.text}</p>)}
