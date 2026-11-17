@@ -28,12 +28,12 @@ The game deals with violence, racism, drug use, debt and coercion, and it says s
 
 ## How a sentence goes
 
-1. **Draft a life.** You keep one charge and one background. Your Outside card (the people who still have you), your stats and your failings are dealt or rolled.
+1. **Draft a life.** You name your character, then keep one charge and one background. The background sets your age, your priors, and your schooling: a diploma, a GED, or neither. Your Outside card (the people who still have you), your stats and your failings are dealt or rolled.
 2. **Court.** The sentence comes from the Washington sentencing grid: the seriousness level against your offender score. You can take the deal, turn down the first offer, or go to trial. What happened at the arrest can add enhancements. If there was a codefendant, you can tell what you know.
 3. **Reception.** Everyone starts at Washington Corrections Center. There are three steps:
    - The interview records your Support.
    - The **Initial Custody Designation** (DOC 310.150) sets Close, Medium or Minimum custody, and the facility comes with it.
-   - **Washington ONE** sets a risk level and rates eight needs. You're reassessed every six months, but the risk level stays frozen.
+   - **Washington ONE** sets a risk level and rates eight needs. Education turns on whether you finished high school or a GED. You're reassessed every six months, but the risk level stays frozen.
 4. **The months.** Each month has the same five steps:
    - A count card.
    - Whatever finds you: your Pull, group, legal mail, a rumor, a cellie.
@@ -76,7 +76,7 @@ TypeScript and React. There are no image assets. Node 20 or later.
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 129 tests: rules, decks, court, intake, routine, replies, UI render
+npm test           # 130 tests: rules, decks, court, intake, routine, replies, UI render
 npm run build      # type-check, then build the static site into dist/
 npm run sim        # balance simulation, 3,000 sentences per strategy per facility
 npx tsx scripts/discipline-sim.ts   # how discipline, visits and EFVs play out over whole sentences

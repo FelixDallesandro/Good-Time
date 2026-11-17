@@ -163,7 +163,7 @@ function Rules(p: { onBack: () => void }) {
       <p>Serve your sentence and walk out on your release date. The institution runs your calendar. The yard runs your standing. Almost every choice trades one for the other. Two rulebooks, both enforced, neither fair.</p>
 
       <h3>Draft a life</h3>
-      <p>Keep one card from each of two hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your age, your priors (your offender score), and a case history you don't see until the end.</p>
+      <p>Name yourself, then keep one card from each of two hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your age, your schooling (a diploma, a GED, or neither), your priors (your offender score), and a case history you don't see until the end.</p>
       <p>Everything else is dealt or rolled. Your <b>Outside</b> card, the people who still have you, is dealt: nobody chooses who waits for them. Then come four stats and your failings. Each stat runs from −2 to +2.</p>
       <ul>
         <li><b>Nerve</b> backs your threats.</li>
@@ -187,7 +187,7 @@ function Rules(p: { onBack: () => void }) {
       <ul>
         <li><b>Support.</b> The interview records who is still there. Months in county jail before trial cost more people than going home on bail.</li>
         <li><b>The Initial Custody Designation</b> scores your crime's category, any history of violence, and whether you're under 29. That sets Close, Medium, or Minimum custody, and the facility comes with it. Close is the hardest place to walk out early.</li>
-        <li><b>Washington ONE</b> sets a risk level, from Lower to High Violent Property Drug, and rates eight needs. It doesn't touch custody. You're reassessed every six months: the needs can change, but the risk level stays frozen while DOC finishes norming the tool. If your conviction carries community custody (RCW 9.94A.701), the level sets how closely you're supervised after release. Property convictions mostly carry none.</li>
+        <li><b>Washington ONE</b> sets a risk level, from Lower to High Violent Property Drug, and rates eight needs. Education turns mostly on whether you finished high school or a GED. It doesn't touch custody. You're reassessed every six months: the needs can change, but the risk level stays frozen while DOC finishes norming the tool. If your conviction carries community custody (RCW 9.94A.701), the level sets how closely you're supervised after release. Property convictions mostly carry none.</li>
       </ul>
 
       <h3>The calendar</h3>
@@ -703,17 +703,21 @@ function Mail({ g, act }: { g: Game; act: Act }) {
 
 /* ---------------------------------------------------------------- */
 
+const EDUCATION = { diploma: 'High school diploma', ged: 'GED', none: 'No diploma or GED' } as const;
+
 function Draft(p: { g: Game; act: Act; onQuit: () => void }) {
   const d = p.g.draft!;
   const [c, setC] = useState('');
   const [b, setB] = useState('');
   const [name, setName] = useState('');
-  const ready = c && b;
+  const ready = c && b && name.trim();
   return (
     <>
       <h2>Draft a life</h2>
       <p className="dim">Keep a charge and a background. Everything else is dealt or rolled: who is still waiting outside, your stats, your failings. Nobody chooses the life they start with, or which prison it ends up in.</p>
-      <input value={name} placeholder="Name (optional)" onChange={(e) => setName(e.target.value)} maxLength={24} />
+      <h3>Your name</h3>
+      <p className="dim small">Your own name, on your private card. The yard and the paperwork may not keep using it.</p>
+      <input value={name} placeholder="Your name" aria-label="Your name" onChange={(e) => setName(e.target.value)} maxLength={24} />
       <h3>Charge</h3>
       {d.charges.map((id) => {
         const ch = charge(id);
@@ -731,13 +735,14 @@ function Draft(p: { g: Game; act: Act; onQuit: () => void }) {
         return (
           <button key={id} className={`choice ${b === id ? 'sel' : ''}`} onClick={() => setB(id)}>
             <b>{bg.front}</b>
-            <span className="small">Offender score from priors: {bg.score}{bg.priorDoc ? ' · Been down before: arrives with a DOC number' : ''}</span>
+            <span className="small">Offender score from priors: {bg.score} · {EDUCATION[bg.education]}{bg.priorDoc ? ' · Been down before: arrives with a DOC number' : ''}</span>
           </button>
         );
       })}
       <button className="primary" disabled={!ready} onClick={() => p.act((g) => draftPick(g, { chargeId: c, backgroundId: b, name }))}>
         Roll stats and failings
       </button>
+      {!ready && <p className="dim small">Pick a charge and a background, and write your name.</p>}
       <button className="ghost" onClick={p.onQuit}>Back</button>
     </>
   );

@@ -1276,8 +1276,8 @@ export function classify(g: Game): Game {
 }
 
 /**
- * Washington ONE needs. Game mapping from what the game tracks; Education and Mental Health aren't tracked, so they
- * aren't scored. The items and weights of the real tool aren't public.
+ * Washington ONE needs. Game mapping from what the game tracks. Education turns mostly on whether you finished high
+ * school or a GED. Mental Health isn't tracked, so it isn't scored. The items and weights of the real tool aren't public.
  */
 export function assessNeeds(s: Game): Record<string, NeedLevel> {
   const lvl = (n: number): NeedLevel => (n >= 2 ? 'High' : n >= 1 ? 'Mod' : 'Low');
@@ -1286,7 +1286,7 @@ export function assessNeeds(s: Game): Record<string, NeedLevel> {
   const general = s.infractions.filter((i) => !i.serious && i.result !== 'not_guilty').length;
   const r: Record<string, NeedLevel> = {
     Residential: adults >= 2 ? 'Low' : adults === 1 ? 'Mod' : 'High',
-    Education: null,
+    Education: s.char ? (background(s.char.backgroundId).education === 'none' ? 'High' : 'Low') : null,
     Employment: s.job ? 'Low' : 'Mod',
     'Social Influences': lvl((has(s, 'affiliated') ? 2 : 0) + (s.strings.some((x) => x.type === 'debt') ? 1 : 0)),
     'Substance Abuse': s.treatment.done ? 'Mod' : has(s, 'habit') || s.treatment.need > 0 ? 'High' : 'Low',

@@ -260,6 +260,8 @@ export interface Background {
   case: CaseLine[];
   /** Offender score from prior adult felonies (RCW 9.94A.525, one point each: simplified). */
   score: number;
+  /** Highest credential: a high school diploma, a GED, or neither. Washington ONE's Education need turns on it. */
+  education: 'diploma' | 'ged' | 'none';
 }
 export interface Outside {
   id: string;

@@ -1,7 +1,7 @@
 {
   "name": "good-time",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A single-player game about serving a sentence in a Washington State prison.",
   "type": "module",
   "main": "electron/main.cjs",

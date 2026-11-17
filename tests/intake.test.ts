@@ -85,6 +85,14 @@ describe('reception (DOC 310.150)', () => {
     }
   });
 
+  it('rates Education on a high school diploma or GED', () => {
+    const edu = (bg: string) => classify(intake('burglary', bg)).intake!.needs.Education;
+    for (const bg of BACKGROUNDS) expect(['diploma', 'ged', 'none']).toContain(bg.education);
+    expect(edu('b3')).toBe('High');   // no diploma or GED
+    expect(edu('b12')).toBe('Low');   // GED
+    expect(edu('b9')).toBe('Low');    // diploma
+  });
+
   it('begins the sentence from reception', () => {
     const s = beginSentence(classify(intake('delivery', 'b8')));
     expect(s.m).toBe(1);
