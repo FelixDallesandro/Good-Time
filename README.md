@@ -1,72 +1,121 @@
 # Good Time
 
-A single-player prison-sentence game built from the *Good Time* design document and the card decks. You serve a sentence set by your case and try to walk out on your release date. Every month breaks one of two rulebooks: the institution's or the yard's. The game plays Staff.
+A single-player game about serving a sentence in a Washington State prison. You are charged, you plead, you are classified, and you try to walk out on your release date. Every month asks you to break one of two rulebooks, the institution's or the yard's, and the game plays Staff.
 
-TypeScript + React, no image assets. It runs in any browser and installs as an app (PWA) on Android, iOS and Windows.
+Like *Papers, Please*, it is a game with a message, and it means for you to find that message by playing. It is about three things:
 
-## Run it
+- **Institutionalization.** What the place does to a person month by month: the routine, the number that replaces your name, and the people outside who stop writing.
+- **Compromise.** Every decision trades one rulebook for the other, and none of the options is a good one.
+- **Disparity.** The same act does not cost everyone the same time. That holds in charging, in sentencing, and in who gets written up.
+
+The systems come from Washington law and DOC policy. The routine, the code, and how a write-up feels come from the designer's own time inside.
+
+## Play it
+
+**In a browser:** https://felixdallesandro.github.io/Good-Time/. It installs as an app from Chrome, Edge or Safari and works offline after the first load.
+
+**Downloads:** the [Releases page](https://github.com/FelixDallesandro/Good-Time/releases/latest) has:
+
+| Platform | File | Notes |
+|---|---|---|
+| Windows | `Good-Time-<version>-windows-setup.exe` | Installer. It isn't code-signed, so SmartScreen may warn you: choose *More info*, then *Run anyway*. |
+| Windows | `Good-Time-<version>-windows-portable.exe` | Runs without installing. |
+| Android | `Good-Time-<version>-android.apk` | Open it on the phone and allow installs from your browser. |
+| iOS | `Good-Time-<version>-ios-unsigned.ipa` | Unsigned. It needs a sideloading tool such as AltStore or Sideloadly. The easier route is the browser link in Safari, then Share → *Add to Home Screen*. |
+| Any | `Good-Time-<version>-web.zip` | The static site. Unzip it and open `index.html`. |
+
+The game deals with violence, racism, drug use, debt and coercion, and it says so before you start. **Count Time**, in the corner, rewinds your last decision at any point.
+
+## How a sentence goes
+
+1. **Draft a life.** You keep one charge and one background. Your Outside card (the people who still have you), your stats and your failings are dealt or rolled.
+2. **Court.** The sentence comes from the Washington sentencing grid: the seriousness level against your offender score. You can take the deal, turn down the first offer, or go to trial. What happened at the arrest can add enhancements. If there was a codefendant, you can tell what you know.
+3. **Reception.** Everyone starts at Washington Corrections Center. There are three steps:
+   - The interview records your Support.
+   - The **Initial Custody Designation** (DOC 310.150) sets Close, Medium or Minimum custody, and the facility comes with it.
+   - **Washington ONE** sets a risk level and rates eight needs. You're reassessed every six months, but the risk level stays frozen.
+4. **The months.** Each month has the same five steps:
+   - A count card.
+   - Whatever finds you: your Pull, group, legal mail, a rumor, a cellie.
+   - Your scene.
+   - The Eyes: staff roll for anything you did.
+   - Visiting and messages.
+
+   Good time fills one box per clean turn. Earned release can take off up to a third of the sentence, but none of the time added by an enhancement.
+5. **Discipline.** There are two kinds of infraction:
+   - **General** (WAC 137-28-220): these cost privileges, never good time. Four of them in ninety days becomes a serious (657).
+   - **Serious**: these go to a hearing, where you plead or contest and can appeal. Sanctions follow DOC 460.050.
+
+   Custody points move you between levels at each review (DOC 300.380). Segregation (DOC 320.200) and new charges for assaults are possible.
+6. **The yard.** Standing, rumors, debts and leverage. Habits form: fight, tell, go to your car, or back down. Routine grows, and your name gives way to your DOC number.
+7. **Outside.** Visits need a visitor application, and they end in a strip search. Extended family visits follow DOC 590.100. Messages are read by staff, and some are held or rejected under DOC 450.100. You can also take a pen pal listing.
+8. **Release and epilogue.** The gate, the first night and the first week. Then you see the following:
+   - Community custody, if your conviction carries it (RCW 9.94A.701 and .703).
+   - Whether you would qualify for Graduated Reentry.
+   - Your hidden case history, set beside every other background's for the same charge.
+   - The ledger of every roll.
+   - What the research says about who gets charged, sentenced and written up.
+
+The in-game **How to play** page is the full rulebook.
+
+## Sources
+
+The rules cite their sources in the game, and the epilogue lists them. The main ones:
+
+- **Law:** WAC 137-28 (discipline); RCW 9.94A and the 2025 Adult Sentencing Guidelines Manual; RCW 9.94A.701 and .703 (community custody).
+- **DOC policy:** 310.150, 300.380, 320.200, 450.100, 460.050 and 590.100; the Graduated Reentry Handbook (500-HA004); the Reentry Center Handbook (400-HA019).
+- **Washington ONE:** the WSIPP 2020 evaluation and DOC's 2026 Family Council slides.
+- **Disparity research:** the U.S. Sentencing Commission (2023); Washington's Task Force on Race and the Criminal Justice System (2012); the *New York Times*' "The Scourge of Racial Bias in New York State's Prisons" (2016); the New York State Inspector General (2022).
+
+Some numbers had to be invented to make a game. They are labeled as game numbers in [src/content/](src/content/). For example, the ICD crime categories in [classification.ts](src/content/classification.ts) are provisional.
+
+## Develop
+
+TypeScript and React. There are no image assets. Node 20 or later.
 
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 27 tests: rules, the card decks, every choice of every card, UI render
-npm run sim        # balance simulation (build step 2 in the design doc)
-npm run build      # static site in dist/
+npm test           # 129 tests: rules, decks, court, intake, routine, replies, UI render
+npm run build      # type-check, then build the static site into dist/
+npm run sim        # balance simulation, 3,000 sentences per strategy per facility
+npx tsx scripts/discipline-sim.ts   # how discipline, visits and EFVs play out over whole sentences
+npx tsx scripts/reply-vet.ts        # sample message replies as a player would meet them
 ```
 
-After `npm run build`, `dist/index.html` also opens by double-click (no server needed). The build emits a classic script instead of a module because browsers block modules over `file://`. The offline cache only works when it is served over HTTP(S).
+`dist/` is committed. After `npm run build`, `dist/index.html` opens by double-click with no server, because the build emits a classic script instead of a module. The offline cache (the service worker) only registers over http(s).
 
-## Ship it
+### Packages
 
-| Platform | How |
-|---|---|
-| Android | Host `dist/` on any HTTPS static host. Open it in Chrome, then menu → *Install app*. |
-| iOS | Same host. Open in Safari, then Share → *Add to Home Screen*. |
-| Windows | Open in Edge or Chrome, then *Install Good Time*. Works offline after first load. |
-| App stores | Wrap `dist/` with [Capacitor](https://capacitorjs.com) (`npx cap add android ios`). Same code, no rewrite. iOS builds need a Mac. |
+| Target | Command | Where it builds |
+|---|---|---|
+| Windows | `npm run desktop` to run it; `npm run dist:win` to build the installer and portable `.exe` into `release/` | [Electron](https://www.electronjs.org). [electron/main.cjs](electron/main.cjs) opens `dist/index.html` in a window. |
+| Android, iOS | Built in CI with [Capacitor](https://capacitorjs.com) from [capacitor.config.json](capacitor.config.json). The `android/` and `ios/` projects are generated in CI and not committed. | GitHub Actions. iOS needs macOS. |
+| Web | Every push to `main` that changes `dist/` publishes to GitHub Pages. | [pages.yml](.github/workflows/pages.yml) |
 
-## Layout
+To publish a release, bump `version` in `package.json`, commit, then `git tag v<version> && git push --tags`. [release.yml](.github/workflows/release.yml) builds all three platforms and attaches them to the release, along with a zip of the web build.
+
+Building the Windows installer locally needs Windows Developer Mode, because electron-builder's signing tools unpack symlinks. Inside the VS Code terminal, unset `ELECTRON_RUN_AS_NODE` before running Electron.
+
+`npm run icons` regenerates every icon from code: the web icons in `public/`, the Windows icon in `build/`, and the mobile icon and splash in `assets/`.
+
+### Layout
 
 ```
 src/engine/    rules engine: pure state in, state out. No UI, no DOM.
-src/content/   every card as typed TypeScript (helpers.ts has fightRoll(), thr() and friends)
+src/content/   cards, sentencing grid, classification, reentry, violations, research, all as typed TypeScript
 src/ui/        React screens
-tests/         rules + deck-integrity + UI smoke tests
-scripts/       balance sim, icon generator
+tests/         Vitest suites
+scripts/       simulations, reply vetting, icon generator
+electron/      Windows desktop wrapper
 ```
 
-Content is typed TypeScript, not JSON: the compiler checks every card, and tests check that every echo points at a card that exists. Games are deterministic from a seed and the whole `Game` object is JSON, which is how save/resume works (saves are versioned; an old one is ignored, not crashed on).
+Content is typed TypeScript, not JSON, so the compiler checks every card. Games are deterministic from a seed, and the whole `Game` object is JSON, which is how save and resume work. Saves are versioned, and an old save is ignored rather than crashing the game.
 
-## What changed with the revised design doc
+## Open problems
 
-- **Case and sentence.** Every Background carries a case (lawyer, bail, record); each ✖ adds 2 months to 12, up to 18. During play only the total is public; the case lines are revealed in the epilogue's **sentencing ledger**, which lays all 12 backgrounds side by side.
-- **Ceiling on added time:** majors can add at most 3 months in total.
-- **Support (0–3)** from the Outside card (+1 with Heart +1, max 3). Clean months with Support earn a **visit** (money, or pull a rumor); a minor suspends visits next month, a major for the rest of the act and costs 1 Support. Three clean months earn an **extended family visit** (not at Granite). **Staying in** a scene costs Standing the second time per act. At Support 0: **Lean on someone**, **Stand in**. **Stop counting** is a one-way door at any time. Who is at the gate on release day depends on Support. Leverage cards enter the deck for Support 2+.
-- **Mail is read.** Staff may delay a message a month or hold it for good (staff, yard and grievance words make that likelier). Held messages appear under *Never delivered*. Support 0 writes to a notebook, which no one reads.
-- **The Pull is rolled, never chosen**: d6, 1–4 give in, 5–6 walk past; each tally widens walk-past; three tallies tear it up.
-- **Cameras and kites are the risk you can't count**: the dice preview shows blue, white and rumor dice only, with a note when cameras may be watching.
-- A private card flipping costs **2 Standing**. Reporting an attack on you **pins a cooperation rumor** (the rat jacket).
-- **Missions** (never discarded; Hurt on 1–3; come back, hit back harder for three marks, or check in; a third Mission is involuntary protective custody, which ends your game) and **Leverage**.
-
-## What the card decks added
-
-12 charges (each with its own Pull), 12 backgrounds with cases, 12 Outside cards with Support and a Line Home move, 12 Code moves (you draw one), 4 Anyone moves (they return), 12 cellies, the 24-card Count deck, the 40-card Yard deck (13 Test, 12 Politics, 15 Life) and the special cards. Facility cards now say who staff watch harder and where staff come from. **Cellies** and the **cell tag**: a search that finds your cellie's contraband lands on you unless he owns his own on the roll the card lists.
-
-### How the decks PDF was read
-
-Several tables in it sit under the wrong heading across page breaks. This build reads them by their own counts: the five rows after "Background deck (12)" begin with Robbery and are charges (12 total); Father, Partner (moving on), Best friend and Sister are Outside cards (12 total, 8 plus 4); the eight cards under "Test (13)" on page 15 are Count cards (24 total, 16 plus 8); the three cards before "Life (15)" are Politics (12 total); Hustle, Grievance, A hand and A question are the four Anyone moves.
-
-## Approximations (solo, and where the rules need other players)
-
-- Kites, pacts, betrayal, "other players aim moves at you" and "released players become the outside" have no other players to use them. The strike simulates three other prisoners; kites are an NPC chance each month.
-- Camera dice are rolled with the other dice at the end of the month, not "just before mail call". The probabilities are identical.
-- "Learn one player's private failing" and "pin a rumor to another player" are flavor lines or stand-ins here. "No count die this act" is recorded but changes no roll. "Tier rep", "his first mistake" and similar are simplified to a debt, a deferred cost or an echo.
-- The cellie fight / lay-low rules are reduced to a marks roll and a skipped scene.
-- Promises (the date to your son, the EFV to your sister) resolve at release.
-- The draft deals three cards per deck and you keep one of each, in place of passing cards left.
-- Not built: daily time blocks, remembered officers (the video-game extras).
-- **Writing review.** The design doc plans for formerly incarcerated reviewers before the rules lock. These cards are the designer's draft, transcribed into code with minimal edits.
-
-## Balance: still an open problem
-
-`npm run sim` plays 3,000 sentences per strategy per facility. The design doc says keeping your head down should cost more good time than putting in work once, but not every time. **The current numbers still don't show that**: strict head-down finishes about even with put-in-work-once at Cedar, and earlier at Harlan and Granite (the sim also reports caught-per-game, dice per roll, deaths and end Standing). The new content raises how often a careful sentence is written up (about 2 catches per game), mostly because the Pull and the new Count cards add rolls. The levers are in `src/content/yard.ts` and `count.ts`: the cost of `let_go`, the Standing-0 `targeted` prompt, the echo cards, and what The Ask / The Visit pay.
+- **Balance.** The design says keeping your head down should cost more good time than putting in work once, but not every time. `npm run sim` reports where the numbers stand. The levers are in [yard.ts](src/content/yard.ts) and [count.ts](src/content/count.ts).
+- **ICD crime categories A–D** are placeholders until the real table is confirmed.
+- **Graduated Reentry and the reentry center** appear only in the epilogue and are not yet playable.
+- **Solo approximations.** The design has other players for kites, pacts, betrayal and rumors aimed at you. Here, NPC chances stand in for them, and the strike simulates three other prisoners.
+- **Writing review.** The design calls for formerly incarcerated reviewers before the rules lock.

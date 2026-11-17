@@ -1,0 +1,6 @@
+{
+  "appId": "io.github.felixdallesandro.goodtime",
+  "appName": "Good Time",
+  "webDir": "dist",
+  "backgroundColor": "#14171c"
+}

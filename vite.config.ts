@@ -24,6 +24,8 @@ export default defineConfig({
     classicScript(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered in src/main.tsx, and only over http(s): the Windows app loads the game from file://.
+      injectRegister: null,
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Good Time',

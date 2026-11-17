@@ -1,5 +1,5 @@
 // Dependency-free PNG icon generator: five cell bars and an amber crossbar.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
@@ -21,14 +21,16 @@ const chunk = (type, data) => {
   return Buffer.concat([len, body, c]);
 };
 
-function png(size, { rounded }) {
-  const s = size / 512;
-  const px = Buffer.alloc(size * size * 4);
+function png(size, { rounded, canvas = size }) {
+  // canvas > size centers the icon on a larger background (the mobile splash screen).
+  const s = size / 512, off = (canvas - size) / 2;
+  const px = Buffer.alloc(canvas * canvas * 4);
   const rect = (x, y, w, h) => (X, Y) => X >= x * s && X < (x + w) * s && Y >= y * s && Y < (y + h) * s;
   const bars = [96, 164, 232, 300, 368].map((x) => rect(x, 96, 28, 320));
   const bar = rect(72, 236, 368, 40);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
+  for (let Y = 0; Y < canvas; Y++) {
+    for (let X = 0; X < canvas; X++) {
+      const x = X - off, y = Y - off;
       let c = [0x14, 0x17, 0x1c, 255];
       if (bars.some((f) => f(x, y))) c = [0x9a, 0xa3, 0xb2, 255];
       if (bar(x, y)) c = [0xe0, 0xa8, 0x4a, 255];
@@ -36,17 +38,17 @@ function png(size, { rounded }) {
         const r = 96 * s, cx = Math.min(Math.max(x, r), size - r), cy = Math.min(Math.max(y, r), size - r);
         if ((x - cx) ** 2 + (y - cy) ** 2 > r * r) c = [0, 0, 0, 0];
       }
-      px.set(c, (y * size + x) * 4);
+      px.set(c, (Y * canvas + X) * 4);
     }
   }
-  const raw = Buffer.alloc((size * 4 + 1) * size);
-  for (let y = 0; y < size; y++) {
-    raw[y * (size * 4 + 1)] = 0;
-    px.copy(raw, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4);
+  const raw = Buffer.alloc((canvas * 4 + 1) * canvas);
+  for (let y = 0; y < canvas; y++) {
+    raw[y * (canvas * 4 + 1)] = 0;
+    px.copy(raw, y * (canvas * 4 + 1) + 1, y * canvas * 4, (y + 1) * canvas * 4);
   }
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
+  ihdr.writeUInt32BE(canvas, 0);
+  ihdr.writeUInt32BE(canvas, 4);
   ihdr[8] = 8; ihdr[9] = 6;
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -57,4 +59,11 @@ function png(size, { rounded }) {
 writeFileSync('public/icon-192.png', png(192, { rounded: true }));
 writeFileSync('public/icon-512.png', png(512, { rounded: false })); // full-bleed so it works as maskable
 writeFileSync('public/apple-touch-icon.png', png(180, { rounded: false })); // iOS rounds it itself
+// App packages: the Windows build (electron-builder reads build/) and Android/iOS (@capacitor/assets reads assets/).
+mkdirSync('build', { recursive: true });
+mkdirSync('assets', { recursive: true });
+writeFileSync('build/icon.png', png(512, { rounded: true }));
+writeFileSync('assets/icon-only.png', png(1024, { rounded: false }));
+writeFileSync('assets/splash.png', png(800, { rounded: true, canvas: 2732 }));
+writeFileSync('assets/splash-dark.png', png(800, { rounded: true, canvas: 2732 }));
 console.log('icons written');

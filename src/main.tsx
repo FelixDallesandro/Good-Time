@@ -8,3 +8,8 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>
 );
+
+// The offline cache only works over http(s). The Windows app and a double-clicked dist/index.html load from file://.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js', { scope: './' }));
+}
