@@ -63,3 +63,28 @@ describe('demo mode', () => {
     expect(render({ ...normal, demo: null })).not.toContain('Your decisions');
   });
 });
+
+describe('the player\'s dice', () => {
+  it('shows the player\'s own rolls on the result, never the Eyes', () => {
+    let withDice = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      let s = beginSentence(classify(drafted(seed)));
+      for (let guard = 0; guard < 600 && s.phase !== 'over' && s.phase !== 'release'; guard++) {
+        if (s.phase === 'result' && s.result!.dice?.length) {
+          withDice++;
+          for (const r of s.result!.dice) {
+            expect(r.faces.every((f) => f >= 1 && f <= 6)).toBe(true);
+            expect(r.label).not.toMatch(/Eyes/);
+          }
+          const html = render(s);
+          expect(html).toContain('class="d6"');
+        }
+        if (s.phase === 'card') s = choose(s, careful(s));
+        else if (s.phase === 'result') s = continueResult(s);
+        else if (s.phase === 'hub') s = s.mo.scenesLeft > 0 ? playScene(applyEfv(s)) : rollEyes(s);
+        else s = endDemo(s);
+      }
+    }
+    expect(withDice).toBeGreaterThan(0);
+  });
+});

@@ -133,3 +133,15 @@ tr.you td { color: var(--amber); font-weight: 700; }
 .decisions { max-height: 22rem; overflow-y: auto; }
 .decisions .line { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .sim { opacity: 0.55; }
+
+/* The player's dice */
+.tray { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 12px; }
+.roll { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.roll.good { border-color: #6fae7a; }
+.roll.bad { border-color: #c4615a; }
+.d6 { width: 44px; height: 44px; flex: none; }
+.d6 rect { fill: #f2efe6; stroke: #1a1408; stroke-width: 3; }
+.d6 circle { fill: #1a1408; }
+.roll.tumbling .d6 { animation: tumble 0.14s linear infinite; }
+@keyframes tumble { 0% { transform: rotate(-12deg) translateY(-2px); } 50% { transform: rotate(10deg) translateY(1px); } 100% { transform: rotate(-12deg) translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .roll.tumbling .d6 { animation: none; } }

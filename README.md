@@ -29,7 +29,7 @@ The game deals with violence, racism, drug use, debt and coercion, and it says s
 ## How a sentence goes
 
 1. **Draft a life.** You name your character, then keep one charge and one background. The background sets your age and your priors. Your Outside card (the people who still have you), your stats, your failings and your schooling are dealt or rolled. Schooling (a diploma, a GED, or neither) has to fit the background: work that asks for a diploma or equivalent always rolls one. Without either, you're placed in GED class (about a year) and can't hold a job inside until you pass.
-2. **Court.** The sentence comes from the Washington sentencing grid: the seriousness level against your offender score. You can take the deal, turn down the first offer, or go to trial. What happened at the arrest can add enhancements. If there was a codefendant, you can tell what you know.
+2. **Court.** The sentence comes from the Washington sentencing grid: the seriousness level against your offender score. You can take the deal, turn down the first offer (the next one may be better, the same or worse, or the prosecutor may pull it and send the case to trial), or go to trial. What happened at the arrest can add enhancements. If there was a codefendant, you can tell what you know.
 3. **Reception.** Everyone starts at Washington Corrections Center. There are three steps:
    - The interview records your Support.
    - The **Initial Custody Designation** (DOC 310.150) sets Close, Medium or Minimum custody, and the facility comes with it.
@@ -55,6 +55,8 @@ The game deals with violence, racism, drug use, debt and coercion, and it says s
    - Your hidden case history, set beside every other background's for the same charge.
    - The ledger of every roll.
    - What the research says about who gets charged, sentenced and written up.
+
+Your own rolls (the Pull, stat checks, threats, whether a fight leaves you hurt) land on the screen as dice, with what each one needed. The Eyes are different: staff roll them behind a screen, and you only hear "clean" or "caught."
 
 The in-game **How to play** page is the full rulebook.
 
@@ -82,7 +84,7 @@ TypeScript and React. There are no image assets. Node 20 or later.
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 134 tests: rules, decks, court, intake, routine, replies, UI render
+npm test           # 136 tests: rules, decks, court, intake, routine, replies, UI render
 npm run build      # type-check, then build the static site into dist/
 npm run sim        # balance simulation, 3,000 sentences per strategy per facility
 npx tsx scripts/discipline-sim.ts   # how discipline, visits and EFVs play out over whole sentences

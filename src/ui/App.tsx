@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   background, charge, facility, failing, outside
 } from '../engine/content';
@@ -16,7 +16,7 @@ import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../conten
 import { CONDITIONS, GRE, communityCustody } from '../content/reentry';
 import { POLICY, RESEARCH } from '../content/research';
 import { CONTACTS, CONTACTS_HOMELESS, GED_MONTHS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, WA_ONE_APPEAL_DAYS } from '../content/classification';
-import type { Choice, Game, OutMsg } from '../engine/types';
+import type { Choice, Game, OutMsg, ShownRoll } from '../engine/types';
 
 const SAVE = 'goodtime.save.v3';
 const SEEN = 'goodtime.notice.v1';
@@ -207,7 +207,7 @@ function Rules(p: { onBack: () => void }) {
       <p>Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high so the deal would sound good. You have three choices:</p>
       <ul>
         <li><b>Take the deal:</b> a reduced charge at an agreed number.</li>
-        <li><b>Turn down the first offer:</b> the next one might be better, the same, or worse.</li>
+        <li><b>Turn down the first offer:</b> the next one might be better, the same, or worse. Or the prosecutor pulls the offer, and you go to trial.</li>
         <li><b>Go to trial:</b> the top of the range on everything charged.</li>
       </ul>
       <p>What happened at the arrest can add time: running from the police, a gun, a child in the car. Trial carries all of it. If there was a codefendant or a ring, you can tell what you know for the bottom of the range. It goes in the transcripts, and it can come out on the yard later.</p>
@@ -516,11 +516,62 @@ function CardView({ g, act }: { g: Game; act: Act }) {
   );
 }
 
+const PIPS: Record<number, [number, number][]> = {
+  1: [[50, 50]],
+  2: [[28, 28], [72, 72]],
+  3: [[28, 28], [50, 50], [72, 72]],
+  4: [[28, 28], [72, 28], [28, 72], [72, 72]],
+  5: [[28, 28], [72, 28], [50, 50], [28, 72], [72, 72]],
+  6: [[28, 26], [72, 26], [28, 50], [72, 50], [28, 74], [72, 74]]
+};
+
+/** One six-sided die, drawn. */
+function Face({ n }: { n: number }) {
+  return (
+    <svg className="d6" viewBox="0 0 100 100" role="img" aria-label={`a ${n}`}>
+      <rect x="4" y="4" width="92" height="92" rx="18" />
+      {PIPS[n]?.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="9" />)}
+    </svg>
+  );
+}
+
+/** The player's rolls: the dice tumble for a moment, then land on what was rolled. Reduced motion skips the tumble. */
+function DiceTray({ rolls }: { rolls: ShownRoll[] }) {
+  const still = typeof window === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const [ticks, setTicks] = useState(still ? 99 : 0);
+  useEffect(() => {
+    if (ticks >= 8) return;
+    const t = setTimeout(() => setTicks((n) => n + 1), 70);
+    return () => clearTimeout(t);
+  }, [ticks]);
+  const landed = ticks >= 8;
+  return (
+    <div className="tray">
+      {rolls.map((r, i) => (
+        <div key={i} className={`roll ${landed ? (r.ok ? 'good' : 'bad') : 'tumbling'}`}>
+          <div className="small dim">{r.label}</div>
+          <div className="row" style={{ gap: 8 }}>
+            {r.faces.map((f, j) => <Face key={j} n={landed ? f : 1 + ((f + ticks * (j + 2) + i) % 6)} />)}
+            {landed && (
+              <span>
+                {r.mod ? <span className="small">{r.mod > 0 ? `+${r.mod}` : r.mod} = <b>{r.faces.reduce((a, b) => a + b, 0) + r.mod}</b> </span> : null}
+                <b>{r.outcome}.</b>
+                {r.need && <span className="small dim"> Needed {r.need}.</span>}
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ResultView({ g, act }: { g: Game; act: Act }) {
   const r = g.result!;
   return (
     <div className="panel">
       <h3>{r.title}</h3>
+      {r.dice?.length ? <DiceTray key={`${g.m}-${g.rng}`} rolls={r.dice} /> : null}
       {r.lines.length ? <Lines lines={r.lines} /> : <p className="dim">Nothing happens. The yard notices that too.</p>}
       <button className="primary" onClick={() => act(continueResult)}>Continue</button>
     </div>
@@ -1366,8 +1417,10 @@ function Court({ g, act }: { g: Game; act: Act }) {
     first: '',
     better: 'You turned down the first offer. The prosecutor came back lower: they did not want to try it either.',
     same: "You turned down the first offer. It's the same offer, and they're not budging.",
-    worse: 'You turned down the first offer. The prosecutor took it personally. The new offer is worse.'
+    worse: 'You turned down the first offer. The prosecutor took it personally. The new offer is worse.',
+    withdrawn: 'You turned down the first offer. The prosecutor pulled it. There is no offer now, and there will not be another: the case goes to trial.'
   } as const;
+  const noDeal = offer === 'withdrawn';
   const canTalk = !!c.info && talk.months < deal.months;
   return (
     <div className="panel">
@@ -1378,12 +1431,12 @@ function Court({ g, act }: { g: Game; act: Act }) {
       </p>
       {facts.map((f) => <p key={f} className="small">{FACTS[f].text}</p>)}
       {offer !== 'first' && <p className="small">{OFFER_NOTE[offer]}</p>}
-      {row('Take the deal', deal, cur.path === 'deal' && !cur.talked, (x) => chooseCourt(x, 'deal'), 'A reduced charge at an agreed number.')}
-      {canTalk && row(
+      {!noDeal && row('Take the deal', deal, cur.path === 'deal' && !cur.talked, (x) => chooseCourt(x, 'deal'), 'A reduced charge at an agreed number.')}
+      {!noDeal && canTalk && row(
         'Take the deal and tell what you know', talk, cur.path === 'deal' && cur.talked, (x) => chooseCourt(x, 'deal', true),
         `${c.infoText} Give them a name and the agreed number drops to the bottom of the range. It goes in the transcripts, and it can come out.`
       )}
-      {c.info && !canTalk && <p className="small dim">{c.infoText} Your lawyer already got you the bottom of the range. Telling would buy you nothing.</p>}
+      {!noDeal && c.info && !canTalk && <p className="small dim">{c.infoText} Your lawyer already got you the bottom of the range. Telling would buy you nothing.</p>}
       {row('Go to trial', trial, cur.path === 'trial', (x) => chooseCourt(x, 'trial'), 'Everything charged, and the judge gives the top of the range for making the court do its job.')}
       {offer === 'first' && <button className="ghost" onClick={() => act(refuseOffer)}>Turn down the first offer and wait for another</button>}
       {(deal.sheet.strike || trial.sheet.strike) && (

@@ -127,7 +127,7 @@ describe('telling what you know', () => {
 });
 
 describe('turning down the first offer', () => {
-  it('happens once, and comes back better, the same, or worse', () => {
+  it('happens once, and comes back better, the same, worse, or pulled', () => {
     const seen = new Set<string>();
     for (let seed = 1; seed <= 60; seed++) {
       const g = draftPick(newGame('harlan', seed), { chargeId: 'burglary', backgroundId: 'b3', outsideId: 'mother', name: 'T' });
@@ -136,8 +136,14 @@ describe('turning down the first offer', () => {
       expect(refuseOffer(r)).toBe(r);
       if (r.court!.offer === 'better') expect(r.court!.months).toBeLessThanOrEqual(g.court!.months);
       if (r.court!.offer === 'worse') expect(r.court!.months).toBeGreaterThanOrEqual(g.court!.months);
+      if (r.court!.offer === 'withdrawn') {
+        // no deal left to take: it's trial, and choosing the deal does nothing
+        expect(r.court!.path).toBe('trial');
+        expect(chooseCourt(r, 'deal')).toBe(r);
+        expect(chooseCourt(r, 'deal', true)).toBe(r);
+      }
     }
-    expect([...seen].sort()).toEqual(['better', 'same', 'worse']);
+    expect([...seen].sort()).toEqual(['better', 'same', 'withdrawn', 'worse']);
   });
 });
 

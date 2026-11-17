@@ -180,7 +180,7 @@ export const CASES: Record<string, { trial: Sheet; deal: Sheet; info?: Info; inf
 
 export type Path = 'deal' | 'trial';
 /** The offer after turning down the first one (game odds in the engine). */
-export type Offer = 'first' | 'better' | 'same' | 'worse';
+export type Offer = 'first' | 'better' | 'same' | 'worse' | 'withdrawn';
 
 export interface Sentence {
   path: Path;

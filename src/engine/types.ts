@@ -469,7 +469,7 @@ export interface Court {
   earnedMax: number;
   strike: boolean;
   talked: boolean;
-  offer: 'first' | 'better' | 'same' | 'worse';
+  offer: 'first' | 'better' | 'same' | 'worse' | 'withdrawn';
 }
 
 export interface Game {
@@ -544,7 +544,9 @@ export interface Game {
   countDeck: string[];
   queue: Card[];
   cur: Cur | null;
-  result: { title: string; lines: string[] } | null;
+  result: { title: string; lines: string[]; dice?: ShownRoll[] } | null;
+  /** The player's own rolls since the last result, shown as dice. Staff's Eyes are rolled behind a screen and never land here. */
+  shown?: ShownRoll[];
   mo: Month;
   letters: Letter[];
   outbox: Outgoing[];
@@ -575,6 +577,19 @@ export interface Game {
   demo?: DemoCut | null;
   /** Reception at Washington Corrections Center: the classification that placed you, and who was still there. */
   intake?: Intake | null;
+}
+
+/** One of the player's own rolls, as the screen shows it: the faces, what was added, and what it needed. */
+export interface ShownRoll {
+  label: string;
+  faces: number[];
+  /** Added to the die: a stat, the shank. */
+  mod?: number;
+  /** "4 or more", "5 or more to walk past". */
+  need?: string;
+  ok: boolean;
+  /** One word for the outcome: "walk past", "they back down". */
+  outcome: string;
 }
 
 export interface Decision {

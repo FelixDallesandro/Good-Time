@@ -15,7 +15,7 @@ import {
 } from '../content/violations';
 import type {
   Card, Character, Choice, Cond, Effect, Game, Groove, Hearing, Infraction, Letter, Month, Officer, PullDef, RollSpec, RumorTag,
-  OutMsg, SlipId, Stat, Style, Tie, TieDef, TieOp
+  OutMsg, ShownRoll, SlipId, Stat, Style, Tie, TieDef, TieOp
 } from './types';
 
 export const STATS: Stat[] = ['nerve', 'hustle', 'cool', 'heart'];
@@ -831,6 +831,7 @@ export function choose(g: Game, id: string): Game {
 
   const ch = cardChoices(card).find((c) => c.id === id);
   if (!ch || lockReason(s, ch)) return g;
+  if (cur.source !== 'threat') s.shown = [];
   // a decision has more than one way to go; the Pull is rolled, never chosen
   if (cardChoices(card).length > 1 && ch.special !== 'pullRoll' && cur.source !== 'threat') decide(s, card.title, ch.label, ch.text);
 
@@ -870,7 +871,8 @@ export function choose(g: Game, id: string): Game {
 }
 
 function finish(s: Game, title: string) {
-  s.result = { title, lines: s.lines.slice() };
+  s.result = { title, lines: s.lines.slice(), ...(s.shown?.length ? { dice: s.shown } : {}) };
+  s.shown = [];
   s.phase = s.ending ? 'over' : 'result';
 }
 
@@ -890,6 +892,7 @@ function applyChoice(s: Game, card: Card, ch: Choice) {
     const target = checkTarget(s, c);
     const r = d(s, 6);
     const ok = r + mod >= target;
+    showRoll(s, { label: c.stat ? `${c.stat[0].toUpperCase()}${c.stat.slice(1)} check` : 'Check', faces: [r], mod, need: `${target} or more`, ok, outcome: ok ? 'It works' : 'It does not' });
     L(s, `Rolled ${r}${mod ? (mod > 0 ? ` +${mod}` : ` ${mod}`) : ''} against ${target}: ${ok ? 'it works.' : 'it does not.'}`);
     apply(s, ok ? c.pass : c.fail, ch);
   }
@@ -921,6 +924,7 @@ function resolveThreat(s: Game, card: Card, ch: Choice): boolean {
   }
   const r = d(s, 6);
   const need = threatNeed(s, t.mod);
+  showRoll(s, { label: 'Threat: d6 + Nerve', faces: [r], mod: 4 - need, need: '4 or more', ok: r + (4 - need) >= 4, outcome: r + (4 - need) >= 4 ? 'They back down' : 'They call it' });
   L(s, `Rolled ${r} + Nerve ${sign(statMod(s, 'nerve'))}${s.flags.shank ? ' +1 (the shank)' : ''}${t.mod ? ` ${sign(t.mod)}` : ''}. Needs ${4}.`);
   if (r + (4 - need) >= 4) {
     L(s, 'They back down.');
@@ -967,6 +971,7 @@ function resolvePull(s: Game, pullId: string) {
   if (!def || !st) return;
   const giveMax = 4 - st.tallies + (hasPriors(s) ? 1 : 0);
   const r = d(s, 6);
+  showRoll(s, { label: `The Pull: ${def.title}`, faces: [r], need: giveMax >= 6 ? 'no roll walks past' : `${giveMax + 1} or more to walk past`, ok: r > giveMax, outcome: r > giveMax ? 'You walk past' : 'You give in' });
   if (r <= giveMax) {
     L(s, `Rolled ${r}: you give in.`);
     s.stats.pullGiven++;
@@ -1252,7 +1257,7 @@ export function classify(g: Game): Game {
   const sheet = CASES[s.char!.chargeId][s.court!.path];
   const c = s.court!;
   decide(s, 'Court',
-    `${c.path === 'trial' ? 'Went to trial' : c.offer !== 'first' ? 'Turned down the first offer, then took the deal' : 'Took the deal'}${c.talked ? ', and told what you knew' : ''}`,
+    `${c.offer === 'withdrawn' ? 'Turned down the first offer. The prosecutor pulled the deal, and the case went to trial' : c.path === 'trial' ? 'Went to trial' : c.offer !== 'first' ? 'Turned down the first offer, then took the deal' : 'Took the deal'}${c.talked ? ', and told what you knew' : ''}`,
     `${fmtMonths(c.months)}${c.path === 'trial' ? ', the top of the range on everything charged' : ''}.`);
 
   // family and community support (I.C.4): the county jail already cost you some of them
@@ -1449,29 +1454,40 @@ export function setCourt(s: Game, path: Path, talk = false, offer: Offer = s.cou
   s.boxes = 0;
 }
 
-/** Choose at intake, before the sentence begins. Talking is only on the table where there is someone to tell on. */
+/** Puts one of the player's rolls on the table, so the screen can show the dice. */
+function showRoll(s: Game, r: ShownRoll) {
+  (s.shown ??= []).push(r);
+}
+
 /** Writes down a decision the player made. */
 function decide(s: Game, what: string, choice: string, cost?: string) {
   (s.decisions ??= []).push({ m: s.m, what, choice, ...(cost ? { cost } : {}) });
 }
 
+/** Choose at intake, before the sentence begins. Talking is only on the table where there is someone to tell on. */
 export function chooseCourt(g: Game, path: Path, talk = false): Game {
   if (g.phase !== 'sheet' || !g.char || !CASES[g.char.chargeId]) return g;
+  if (path === 'deal' && g.court?.offer === 'withdrawn') return g; // there is no deal to take
   const s = clone(g);
   setCourt(s, path, talk);
   return s;
 }
 
-/** Odds after turning down the first offer (game numbers): a third better, half the same, a sixth worse. */
-export const OFFER_ODDS = { better: 1 / 3, same: 1 / 2 };
+/**
+ * Odds after turning down the first offer (game numbers): sometimes better, usually the same, sometimes worse, and
+ * sometimes the prosecutor pulls the offer altogether and the case goes to trial.
+ */
+export const OFFER_ODDS = { better: 0.3, same: 0.4, worse: 0.15, withdrawn: 0.15 };
 
 /** Turn down the first offer, once. The prosecutor doesn't want a trial either, usually. */
 export function refuseOffer(g: Game): Game {
   if (g.phase !== 'sheet' || !g.char || !g.court || g.court.offer !== 'first') return g;
   const s = clone(g);
   const r = next(s);
-  const offer: Offer = r < OFFER_ODDS.better ? 'better' : r < OFFER_ODDS.better + OFFER_ODDS.same ? 'same' : 'worse';
-  setCourt(s, 'deal', g.court.talked, offer);
+  const o = OFFER_ODDS;
+  const offer: Offer = r < o.better ? 'better' : r < o.better + o.same ? 'same' : r < o.better + o.same + o.worse ? 'worse' : 'withdrawn';
+  if (offer === 'withdrawn') setCourt(s, 'trial', false, offer);
+  else setCourt(s, 'deal', g.court.talked, offer);
   return s;
 }
 
@@ -1757,7 +1773,9 @@ function pin(s: Game, tag: RumorTag) {
 }
 
 function hurtCheck(s: Game, threshold: number) {
-  if (d(s, 6) > threshold) return;
+  const r = d(s, 6);
+  showRoll(s, { label: 'Are you hurt?', faces: [r], need: `${threshold + 1} or more to walk away`, ok: r > threshold, outcome: r > threshold ? 'You walk away' : s.hurt ? 'Hurt again' : 'Hurt' });
+  if (r > threshold) return;
   if (!s.hurt) {
     s.hurt = true;
     L(s, "You're hurt. Next scene: medical. You can't fight until the next mail call.");
