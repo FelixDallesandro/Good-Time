@@ -113,61 +113,67 @@ export interface Sheet {
   /** Enhancements are per count. */
   enhCounts?: number;
   strike: boolean;
+  /**
+   * DOC 310.150 crime category for initial classification. PROVISIONAL (game): the policy doesn't publish which
+   * crimes are A to D. Here A is a serious violent offense, B a violent offense (RCW 9.94A.030), C other crimes
+   * against a person, weapons, or flight, D property and drugs. Awaiting the designer's mapping.
+   */
+  cat: 'A' | 'B' | 'C' | 'D';
 }
 
 /** What the prosecutor files, and what they will take. Counts are game; offenses and levels are the statutes'. */
 export const CASES: Record<string, { trial: Sheet; deal: Sheet; info?: Info; infoText?: string }> = {
   burglary: {
-    trial: { offense: 'Burglary in the first degree', rcw: '9A.52.020', grid: 'felony', level: 7, counts: 3, strike: true },
-    deal: { offense: 'Residential burglary', rcw: '9A.52.025', grid: 'felony', level: 4, counts: 3, strike: false },
+    trial: { offense: 'Burglary in the first degree', rcw: '9A.52.020', grid: 'felony', level: 7, counts: 3, cat: 'B', strike: true },
+    deal: { offense: 'Residential burglary', rcw: '9A.52.025', grid: 'felony', level: 4, counts: 3, cat: 'C', strike: false },
     info: 'codefendant', infoText: 'You were not the only one in the house.'
   },
   retail_theft: {
-    trial: { offense: 'Retail theft with special circumstances, first degree', rcw: '9A.56.360', grid: 'felony', level: 3, counts: 6, strike: false },
-    deal: { offense: 'Theft in the first degree', rcw: '9A.56.030', grid: 'felony', level: 2, counts: 5, strike: false }
+    trial: { offense: 'Retail theft with special circumstances, first degree', rcw: '9A.56.360', grid: 'felony', level: 3, counts: 6, cat: 'D', strike: false },
+    deal: { offense: 'Theft in the first degree', rcw: '9A.56.030', grid: 'felony', level: 2, counts: 5, cat: 'D', strike: false }
   },
   identity_theft: {
-    trial: { offense: 'Identity theft in the first degree', rcw: '9.35.020', grid: 'felony', level: 4, counts: 5, strike: false },
-    deal: { offense: 'Identity theft in the second degree', rcw: '9.35.020', grid: 'felony', level: 2, counts: 5, strike: false },
+    trial: { offense: 'Identity theft in the first degree', rcw: '9.35.020', grid: 'felony', level: 4, counts: 5, cat: 'D', strike: false },
+    deal: { offense: 'Identity theft in the second degree', rcw: '9.35.020', grid: 'felony', level: 2, counts: 5, cat: 'D', strike: false },
     info: 'ring', infoText: 'You know who sold you the numbers.'
   },
   delivery: {
-    trial: { offense: 'Possession with intent to deliver methamphetamine', rcw: '69.50.401', grid: 'drug', level: 2, counts: 2, enh: DRUG_ZONE, strike: false },
-    deal: { offense: 'Possession with intent to deliver methamphetamine', rcw: '69.50.401', grid: 'drug', level: 2, counts: 1, strike: false },
+    trial: { offense: 'Possession with intent to deliver methamphetamine', rcw: '69.50.401', grid: 'drug', level: 2, counts: 2, enh: DRUG_ZONE, cat: 'D', strike: false },
+    deal: { offense: 'Possession with intent to deliver methamphetamine', rcw: '69.50.401', grid: 'drug', level: 2, counts: 1, cat: 'D', strike: false },
     info: 'ring', infoText: 'You know who fronted it to you.'
   },
   stolen_vehicle: {
-    trial: { offense: 'Possession of a stolen vehicle', rcw: '9A.56.068', grid: 'felony', level: 2, counts: 6, strike: false },
-    deal: { offense: 'Possession of a stolen vehicle', rcw: '9A.56.068', grid: 'felony', level: 2, counts: 5, strike: false }
+    trial: { offense: 'Possession of a stolen vehicle', rcw: '9A.56.068', grid: 'felony', level: 2, counts: 6, cat: 'D', strike: false },
+    deal: { offense: 'Possession of a stolen vehicle', rcw: '9A.56.068', grid: 'felony', level: 2, counts: 5, cat: 'D', strike: false }
   },
   vehicular: {
-    trial: { offense: 'Vehicular assault, under the influence', rcw: '46.61.522', grid: 'felony', level: 4, counts: 5, strike: true },
-    deal: { offense: 'Vehicular assault, disregard for the safety of others', rcw: '46.61.522', grid: 'felony', level: 3, counts: 5, strike: false }
+    trial: { offense: 'Vehicular assault, under the influence', rcw: '46.61.522', grid: 'felony', level: 4, counts: 5, cat: 'B', strike: true },
+    deal: { offense: 'Vehicular assault, disregard for the safety of others', rcw: '46.61.522', grid: 'felony', level: 3, counts: 5, cat: 'C', strike: false }
   },
   assault: {
-    trial: { offense: 'Assault in the second degree', rcw: '9A.36.021', grid: 'felony', level: 4, counts: 2, enh: DEADLY_B, enhCounts: 2, strike: true },
-    deal: { offense: 'Assault in the second degree', rcw: '9A.36.021', grid: 'felony', level: 4, counts: 1, enh: DEADLY_B, enhCounts: 1, strike: true }
+    trial: { offense: 'Assault in the second degree', rcw: '9A.36.021', grid: 'felony', level: 4, counts: 2, enh: DEADLY_B, enhCounts: 2, cat: 'B', strike: true },
+    deal: { offense: 'Assault in the second degree', rcw: '9A.36.021', grid: 'felony', level: 4, counts: 1, enh: DEADLY_B, enhCounts: 1, cat: 'B', strike: true }
   },
   robbery: {
-    trial: { offense: 'Robbery in the first degree', rcw: '9A.56.200', grid: 'felony', level: 9, counts: 1, enh: DEADLY_A, enhCounts: 1, strike: true },
-    deal: { offense: 'Robbery in the second degree', rcw: '9A.56.210', grid: 'felony', level: 4, counts: 3, strike: false },
+    trial: { offense: 'Robbery in the first degree', rcw: '9A.56.200', grid: 'felony', level: 9, counts: 1, enh: DEADLY_A, enhCounts: 1, cat: 'B', strike: true },
+    deal: { offense: 'Robbery in the second degree', rcw: '9A.56.210', grid: 'felony', level: 4, counts: 3, cat: 'B', strike: false },
     info: 'codefendant', infoText: 'Somebody else was driving.'
   },
   firearm: {
-    trial: { offense: 'Unlawful possession of a firearm, first degree', rcw: '9.41.040', grid: 'felony', level: 7, counts: 2, strike: false },
-    deal: { offense: 'Unlawful possession of a firearm, first degree', rcw: '9.41.040', grid: 'felony', level: 7, counts: 1, strike: false }
+    trial: { offense: 'Unlawful possession of a firearm, first degree', rcw: '9.41.040', grid: 'felony', level: 7, counts: 2, cat: 'C', strike: false },
+    deal: { offense: 'Unlawful possession of a firearm, first degree', rcw: '9.41.040', grid: 'felony', level: 7, counts: 1, cat: 'C', strike: false }
   },
   eluding: {
-    trial: { offense: 'Attempting to elude a pursuing police vehicle', rcw: '46.61.024', grid: 'felony', level: 1, counts: 2, enh: ELUDE, enhCounts: 1, strike: false },
-    deal: { offense: 'Attempting to elude a pursuing police vehicle', rcw: '46.61.024', grid: 'felony', level: 1, counts: 1, enh: ELUDE, enhCounts: 1, strike: false }
+    trial: { offense: 'Attempting to elude a pursuing police vehicle', rcw: '46.61.024', grid: 'felony', level: 1, counts: 2, enh: ELUDE, enhCounts: 1, cat: 'C', strike: false },
+    deal: { offense: 'Attempting to elude a pursuing police vehicle', rcw: '46.61.024', grid: 'felony', level: 1, counts: 1, enh: ELUDE, enhCounts: 1, cat: 'C', strike: false }
   },
   no_contact: {
-    trial: { offense: 'Felony violation of a no-contact order', rcw: '7.105.450', grid: 'felony', level: 5, counts: 4, strike: false },
-    deal: { offense: 'Felony violation of a no-contact order', rcw: '7.105.450', grid: 'felony', level: 5, counts: 2, strike: false }
+    trial: { offense: 'Felony violation of a no-contact order', rcw: '7.105.450', grid: 'felony', level: 5, counts: 4, cat: 'C', strike: false },
+    deal: { offense: 'Felony violation of a no-contact order', rcw: '7.105.450', grid: 'felony', level: 5, counts: 2, cat: 'C', strike: false }
   },
   trafficking: {
-    trial: { offense: 'Trafficking in stolen property, first degree', rcw: '9A.82.050', grid: 'felony', level: 4, counts: 5, strike: false },
-    deal: { offense: 'Trafficking in stolen property, second degree', rcw: '9A.82.055', grid: 'felony', level: 3, counts: 5, strike: false },
+    trial: { offense: 'Trafficking in stolen property, first degree', rcw: '9A.82.050', grid: 'felony', level: 4, counts: 5, cat: 'D', strike: false },
+    deal: { offense: 'Trafficking in stolen property, second degree', rcw: '9A.82.055', grid: 'felony', level: 3, counts: 5, cat: 'D', strike: false },
     info: 'ring', infoText: 'You know where it was coming from.'
   }
 };
@@ -229,8 +235,8 @@ export function sentenceFor(
   return { path, sheet, enhs, extra, score, range: r, base, enhMonths, months, earnedMax: Math.floor((months - flat) / 3) };
 }
 
-const ASSAULT_1: Sheet = { offense: 'Assault in the first degree', rcw: '9A.36.011', grid: 'felony', level: 12, counts: 1, strike: true };
-const ASSAULT_2: Sheet = { offense: 'Assault in the second degree', rcw: '9A.36.021', grid: 'felony', level: 4, counts: 1, strike: true };
+const ASSAULT_1: Sheet = { offense: 'Assault in the first degree', rcw: '9A.36.011', grid: 'felony', level: 12, counts: 1, cat: 'A', strike: true };
+const ASSAULT_2: Sheet = { offense: 'Assault in the second degree', rcw: '9A.36.021', grid: 'felony', level: 4, counts: 1, cat: 'B', strike: true };
 
 /**
  * The new case if an assault finding is referred to the prosecutor. With a weapon, they file assault 1 and the deal

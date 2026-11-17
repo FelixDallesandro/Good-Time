@@ -1,5 +1,5 @@
 import { CHARGES, BACKGROUNDS, OUTSIDES } from './content';
-import { chooseCourt,
+import { chooseCourt, classify,
   advanceRelease,
   applyEfv,
   beginSentence,
@@ -70,6 +70,8 @@ export interface PlayOpts {
   court?: { path: 'deal' | 'trial'; talk?: boolean };
   /** Flags set when the sentence begins, e.g. to force a referral. */
   flags?: Game['flags'];
+  /** Go through reception: classification places you instead of facilityId. */
+  classify?: boolean;
 }
 
 export function playGame(seed: number, opts: PlayOpts = {}): Game {
@@ -83,6 +85,7 @@ export function playGame(seed: number, opts: PlayOpts = {}): Game {
   });
   if (opts.inject) s.yardDeck = [...opts.inject, ...s.yardDeck];
   if (opts.court) s = chooseCourt(s, opts.court.path, opts.court.talk);
+  if (opts.classify) s = classify(s);
   s = beginSentence(s);
   if (opts.flags) Object.assign(s.flags, opts.flags);
   for (let guard = 0; guard < 5000 && s.phase !== 'over'; guard++) {

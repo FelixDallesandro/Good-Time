@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import {
-  FACILITIES, background, charge, facility, failing, outside
+  background, charge, facility, failing, outside
 } from '../engine/content';
 import {
-  STATS, actOf, activeTies, advanceRelease, caseFacts, chooseCourt, clock, refuseOffer, appeal, appealRejection, applyEfv, displayName, releaseCard, routineLevel, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
+  STATS, actOf, activeTies, advanceRelease, caseFacts, chooseCourt, classify, listingActive, postProfile, clock, refuseOffer, appeal, appealRejection, applyEfv, displayName, releaseCard, routineLevel, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
   conspFacts, continueResult, custodyScore, cutLeverage, denyRumor, draftPick, efvBlock, grooveCost, grooveLabel, ledgerRows, leanOn, letterSlots, lockReason,
   newGame, onSheet, payDebt, plead, playMove, playScene, preview, primaryTie, releaseMonth, rollEyes, sentencingRows, standIn, stayIn,
   stopCounting, submitLetters, tieActive, toMail, visitingTies, MESSAGE_LIMIT
@@ -12,6 +12,9 @@ import { TOPICS, correspondents, topicsFor } from '../engine/replies';
 import { violation } from '../content/violations';
 import { SOURCES, WA_ALL, WA_BY_CUSTODY, WA_PRIOR, estimate, rateFor } from '../content/recidivism';
 import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../content/sentencing';
+import { CONDITIONS, GRE, communityCustody } from '../content/reentry';
+import { POLICY, RESEARCH } from '../content/research';
+import { CONTACTS, CONTACTS_HOMELESS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, WA_ONE_APPEAL_DAYS } from '../content/classification';
 import type { Choice, Game, OutMsg } from '../engine/types';
 
 const SAVE = 'goodtime.save.v3';
@@ -42,7 +45,7 @@ const seenNotice = () => {
   }
 };
 
-type Screen = 'title' | 'notice' | 'rules' | 'facility' | 'game';
+type Screen = 'title' | 'notice' | 'rules' | 'game';
 const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
 const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
@@ -68,8 +71,9 @@ export function App() {
     storeSave(prev);
     setPrev(null);
   };
-  const start = (facilityId: string) => {
-    const g = newGame(facilityId, (Math.random() * 2 ** 31) | 0);
+  // nobody picks their prison: classification at reception places you
+  const start = () => {
+    const g = newGame('harlan', (Math.random() * 2 ** 31) | 0);
     setGame(g);
     setPrev(null);
     storeSave(g);
@@ -84,7 +88,7 @@ export function App() {
       {screen === 'title' && (
         <Title
           canContinue={!!saved}
-          onNew={() => setScreen(seenNotice() ? 'facility' : 'notice')}
+          onNew={() => (seenNotice() ? start() : setScreen('notice'))}
           onContinue={() => {
             setGame(saved);
             setPrev(null);
@@ -101,15 +105,14 @@ export function App() {
             } catch {
               /* ignore */
             }
-            setScreen('facility');
+            start();
           }}
           onBack={() => setScreen('title')}
         />
       )}
       {screen === 'rules' && <Rules onBack={() => setScreen('title')} />}
-      {screen === 'facility' && <FacilityPick onPick={start} onBack={() => setScreen('title')} />}
       {screen === 'game' && game && (
-        <GameView g={game} act={act} countTime={countTime} canRewind={!!prev} onQuit={quit} onCards={() => setCards(true)} onAgain={() => setScreen('facility')} />
+        <GameView g={game} act={act} countTime={countTime} canRewind={!!prev} onQuit={quit} onCards={() => setCards(true)} onAgain={start} />
       )}
       {cards && game?.char && (
         <div className="modal" onClick={() => setCards(false)}>
@@ -160,8 +163,8 @@ function Rules(p: { onBack: () => void }) {
       <p>Serve your sentence and walk out on your release date. The institution runs your calendar. The yard runs your standing. Almost every choice trades one for the other. Two rulebooks, both enforced, neither fair.</p>
 
       <h3>Draft a life</h3>
-      <p>Choose a facility, then keep one card from each of three hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your priors (your offender score) and a case history you don't see until the end. Your <b>Outside</b> card sets the people who still have you.</p>
-      <p>Everything else is rolled: four stats and your failings. Each stat runs from −2 to +2.</p>
+      <p>Keep one card from each of two hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your age, your priors (your offender score), and a case history you don't see until the end.</p>
+      <p>Everything else is dealt or rolled. Your <b>Outside</b> card, the people who still have you, is dealt: nobody chooses who waits for them. Then come four stats and your failings. Each stat runs from −2 to +2.</p>
       <ul>
         <li><b>Nerve</b> backs your threats.</li>
         <li><b>Hustle</b> stretches a deal.</li>
@@ -178,6 +181,14 @@ function Rules(p: { onBack: () => void }) {
         <li><b>Go to trial:</b> the top of the range on everything charged.</li>
       </ul>
       <p>What happened at the arrest can add time: running from the police, a gun, a child in the car. Trial carries all of it. If there was a codefendant or a ring, you can tell what you know for the bottom of the range. It goes in the transcripts, and it can come out on the yard later.</p>
+
+      <h3>Reception</h3>
+      <p>Everyone goes to Washington Corrections Center first, held at Close custody until classified (DOC 310.150). Nobody picks their prison.</p>
+      <ul>
+        <li><b>Support.</b> The interview records who is still there. Months in county jail before trial cost more people than going home on bail.</li>
+        <li><b>The Initial Custody Designation</b> scores your crime's category, any history of violence, and whether you're under 29. That sets Close, Medium, or Minimum custody, and the facility comes with it. Close is the hardest place to walk out early.</li>
+        <li><b>Washington ONE</b> sets a risk level, from Lower to High Violent Property Drug, and rates eight needs. It doesn't touch custody. You're reassessed every six months: the needs can change, but the risk level stays frozen while DOC finishes norming the tool. If your conviction carries community custody (RCW 9.94A.701), the level sets how closely you're supervised after release. Property convictions mostly carry none.</li>
+      </ul>
 
       <h3>The calendar</h3>
       <p>Each turn on the calendar is a stretch of real time; the clock shows the months. Every sentence plays at least 12 turns, and long ones are compressed. Earned release can take up to a third off your sentence, but never the time on a weapon or child passenger enhancement. That third is your row of good-time boxes. Each turn without a serious infraction fills one, and you walk out at your sentence minus your filled boxes.</p>
@@ -236,6 +247,7 @@ function Rules(p: { onBack: () => void }) {
       <h3>Outside</h3>
       <p>Each person on your Outside card is real. Some can visit, some can only write, and a child can only come with the adult who brings them. A new visitor waits about two months on the visitor application. When someone leaves, their visits and their messages stop.</p>
       <p>When a visit comes, you choose what it's for: money on your books, or steadying yourself, which takes one rumor off you. They strip you out after every visit, so fresh ink or marks from a fight can become a write-up.</p>
+      <p><b>Pen pals.</b> You can pay for a listing on a pen pal site from your books. While it's up, a stranger sometimes writes. A pen pal is messages only, and can drift away like anyone else.</p>
       <p>An extended family visit is a separate program for immediate family. You need six visits in the last twelve months before you can apply, and the decision takes two to six months.</p>
       <p><b>Messages.</b> On the tablet you pick who to write and a subject, and write what you want. Send nothing but a subject and they notice. Replies come the next month. Staff read everything, both ways. Some words hold a message in review, and nobody tells you which. A message can be rejected: you can appeal one that was sent to you, but not one you sent. With no one left, you write in a notebook no one reads.</p>
 
@@ -250,22 +262,6 @@ function Rules(p: { onBack: () => void }) {
       <p className="dim"><b>Count Time</b>, in the corner, rewinds your last decision. Use it freely. Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
       <button className="primary" onClick={p.onBack}>Back</button>
     </div>
-  );
-}
-
-function FacilityPick(p: { onPick: (id: string) => void; onBack: () => void }) {
-  return (
-    <>
-      <h2>Choose a facility</h2>
-      <p className="dim">Custody level sets the difficulty: the higher the custody, the harder it is to walk out early.</p>
-      {FACILITIES.map((f) => (
-        <button key={f.id} className="choice" onClick={() => p.onPick(f.id)}>
-          <b>{f.name} <span className="dim small">· {cap(f.custody)} custody · {f.difficulty}</span></b>
-          <span className="dim small">{f.rules}</span>
-        </button>
-      ))}
-      <button className="ghost" onClick={p.onBack}>Back</button>
-    </>
   );
 }
 
@@ -368,15 +364,16 @@ export function GameView(p: { g: Game; act: Act; countTime: () => void; canRewin
   if (g.phase === 'sheet')
     return (
       <>
-        <h2>Intake</h2>
-        <p className="dim">Your public card is read aloud. Your private card is yours alone.</p>
+        <h2>The court</h2>
+        <p className="dim">Your public card is what the yard will know. Your private card is yours alone.</p>
         <Court g={g} act={act} />
         <CharacterCards g={g} />
-        <button className="primary" onClick={() => act(beginSentence)}>
-          {g.court?.path === 'trial' ? 'Go to trial and begin your sentence' : g.court?.talked ? 'Talk, take the deal, and begin your sentence' : 'Take the deal and begin your sentence'}
+        <button className="primary" onClick={() => act(classify)}>
+          {g.court?.path === 'trial' ? 'Go to trial' : g.court?.talked ? 'Talk and take the deal' : 'Take the deal'}, and go to reception
         </button>
       </>
     );
+  if (g.phase === 'reception') return <Reception g={g} act={act} />;
   if (g.phase === 'over') return <Epilogue g={g} onAgain={p.onAgain} onQuit={p.onQuit} />;
   if (g.phase === 'release') return <Release g={g} act={act} />;
 
@@ -528,6 +525,12 @@ function Hub({ g, act }: { g: Game; act: Act }) {
           {hasDebt && <button className="small" disabled={g.commissary < 6} onClick={() => act(payDebt)}>Pay a debt (6 commissary)</button>}
           {hasLev && <button className="small" onClick={() => act(cutLeverage)}>Cut the leverage string (+5 commissary)</button>}
           {g.support >= 1 && !done && <button className="small" onClick={() => act(stayIn)}>Stay in (skip a scene; the yard notices the second time)</button>}
+          {!listingActive(g) && (
+            <button className="small" disabled={g.commissary < PEN_PAL.cost} onClick={() => act(postProfile)}>
+              Post a pen pal listing ({PEN_PAL.cost} commissary)
+            </button>
+          )}
+          {listingActive(g) && <span className="small dim">Your pen pal listing is up.</span>}
           {g.support === 0 && <button className="small" onClick={() => act(leanOn)}>Lean on someone (once per act)</button>}
           {g.support === 0 && <button className="small" onClick={() => act(standIn)}>Stand in for someone (once per act)</button>}
         </div>
@@ -704,13 +707,12 @@ function Draft(p: { g: Game; act: Act; onQuit: () => void }) {
   const d = p.g.draft!;
   const [c, setC] = useState('');
   const [b, setB] = useState('');
-  const [o, setO] = useState('');
   const [name, setName] = useState('');
-  const ready = c && b && o;
+  const ready = c && b;
   return (
     <>
       <h2>Draft a life</h2>
-      <p className="dim">Keep one card from each hand. Everything else about you — your stats, your failings — is rolled. Nobody chooses the life they start with.</p>
+      <p className="dim">Keep a charge and a background. Everything else is dealt or rolled: who is still waiting outside, your stats, your failings. Nobody chooses the life they start with, or which prison it ends up in.</p>
       <input value={name} placeholder="Name (optional)" onChange={(e) => setName(e.target.value)} maxLength={24} />
       <h3>Charge</h3>
       {d.charges.map((id) => {
@@ -733,17 +735,7 @@ function Draft(p: { g: Game; act: Act; onQuit: () => void }) {
           </button>
         );
       })}
-      <h3>Outside</h3>
-      {d.outsides.map((id) => {
-        const out = outside(id);
-        return (
-          <button key={id} className={`choice ${o === id ? 'sel' : ''}`} onClick={() => setO(id)}>
-            <b>{out.front}</b>
-            <span className="small">Support {out.support}</span>
-          </button>
-        );
-      })}
-      <button className="primary" disabled={!ready} onClick={() => p.act((g) => draftPick(g, { chargeId: c, backgroundId: b, outsideId: o, name }))}>
+      <button className="primary" disabled={!ready} onClick={() => p.act((g) => draftPick(g, { chargeId: c, backgroundId: b, name }))}>
         Roll stats and failings
       </button>
       <button className="ghost" onClick={p.onQuit}>Back</button>
@@ -769,7 +761,7 @@ function CharacterCards({ g }: { g: Game }) {
         <h2>{displayName(g)}</h2>
         <p>{bg.front}</p>
         <p><b>{chg.name}.</b> {ch.claim}</p>
-        <p className="small dim">At {fac.name} · Sentence {g.court ? fmtMonths(g.court.months) : `${g.sentence} months`} · Standing {g.standing} · Support {g.support}</p>
+        <p className="small dim">At {g.phase === 'draft' || g.phase === 'sheet' || g.phase === 'reception' ? 'county jail, then reception' : fac.name} · Sentence {g.court ? fmtMonths(g.court.months) : `${g.sentence} months`} · Standing {g.standing} · Support {g.support}</p>
         {publicFailings.map((f) => <p key={f.id} className="small"><b>{f.name}.</b> {f.text}</p>)}
         <div className="grid4">
           {STATS.map((k) => (
@@ -835,6 +827,29 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
   const lvl = routineLevel(g);
   if (lvl >= 3) notes.push(`By the end you answered to ${ch.docNumber} faster than to your name.`);
   else if (lvl === 2) notes.push(`By the end, ${ch.docNumber} had started to sound like your name.`);
+  if (g.intake)
+  {
+    const night = g.release?.picks['The First Night'];
+    const homeless = (night === 'Find a shelter bed' || night === 'Ride the bus until morning') && g.intake.risk !== 'Lower';
+    notes.push(`Reception scored you ${g.intake.icd} and sent you to ${cap(g.intake.custody)} custody. Washington ONE put you at ${g.intake.risk} on intake, and it was still ${g.intake.risk} at the gate, whatever you did in between.`);
+    if (g.ending === 'released' && !g.flags.newMonths && g.court) {
+      const cc = communityCustody(g.court.offense);
+      const served = Math.round(g.m * (g.perTurn || 1));
+      // Graduated Reentry (DOC 500-HA004): Track 2 is closed to violent offenses and crimes against persons
+      const track2 = cc.months === 0 || cc.why.includes('drug');
+      const early = track2 ? Math.min(GRE.ehmTrack2, served - GRE.track2Min) : Math.min(GRE.reentryCenter, served - GRE.track1Min);
+      const sponsor = activeTies(g).find((t) => !t.minor && t.visits && t.role !== 'stranger');
+      if (early > 0)
+        notes.push(
+          `You served about ${served} months. Graduated Reentry could have let you do the last ${early} of them ${track2 ? 'at home on an ankle monitor' : `at a reentry center, and up to the final ${GRE.ehmTrack1} at home on an ankle monitor`}, with ${sponsor ? `${sponsor.who} as your sponsor` : `an approved address, or a DOC housing voucher for up to ${GRE.voucher} months if there was none`}. DOC screens for it; this game doesn't play it.`
+        );
+      notes.push(
+        cc.months
+          ? `Then ${cc.months} months of community custody, because ${g.court.offense.toLowerCase()} is ${cc.why} (RCW 9.94A.701): ${CONDITIONS}. At ${g.intake.risk}, the minimum is ${homeless ? CONTACTS_HOMELESS : CONTACTS[g.intake.risk as keyof typeof CONTACTS]}.`
+          : `No community custody: ${g.court.offense.toLowerCase()} is ${cc.why} (RCW 9.94A.701). Your Washington ONE level never got used. When the gate opened, nobody was assigned to supervise you.`
+      );
+    }
+  }
   if (!notes.length) notes.push('You did your time.');
 
   const early = g.sentence - g.m;
@@ -1014,9 +1029,103 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
         </details>
       </div>
 
+      <AboutTheGame g={g} />
+
       <button className="primary" onClick={onAgain}>Serve another sentence</button>
       <button className="ghost" onClick={onQuit}>Main menu</button>
     </>
+  );
+}
+
+/**
+ * What the game is for, said once, after play. Like Papers, Please, it hopes the message arrived through the choices
+ * before it arrives in words. Each aim points back to this run, then to the research.
+ */
+function AboutTheGame({ g }: { g: Game }) {
+  const ch = g.char!;
+  const bg = background(ch.backgroundId);
+  const s = g.stats;
+  const served = Math.round(g.m * (g.perTurn || 1));
+  const lvl = routineLevel(g);
+  const choices = s.letGo + s.fights + s.informed + s.putInWork + s.pullGiven + s.pullWalked;
+  const court = g.court;
+  const other = court ? sentenceFor(ch.chargeId, bg.score, court.path === 'deal' ? 'trial' : 'deal', bg.case.map((c) => c.bad), { facts: court.facts }) : null;
+  const sent = sentencingRows(ch.chargeId);
+  const src = (k: keyof typeof RESEARCH) => (
+    <a href={RESEARCH[k].url} target="_blank" rel="noreferrer">{RESEARCH[k].label}</a>
+  );
+  return (
+    <div className="panel">
+      <h2>What this game is about</h2>
+      <p>
+        Good Time is a game with a message, and it hoped you would find it by playing before you read it here. It does not lecture during play: the
+        systems do the talking, and the pattern only shows when you line things up at the end. It asks three things of you.
+      </p>
+
+      <h3>1. What the place does to a person</h3>
+      <p>
+        Institutionalization is not one moment. It is the noise you stop hearing, the number you answer to, the count you stand for before anyone calls
+        it. The game tracks it month by month, and contact with the outside is the only thing that slows it.
+      </p>
+      <p className="small">
+        You served about {served} months.{' '}
+        {lvl >= 3
+          ? `By the end you answered to ${ch.docNumber} before your name.`
+          : lvl >= 1
+            ? 'The routine had started to settle into you.'
+            : 'You held it off. The people writing to you had a lot to do with that.'}{' '}
+        {g.support > 0 ? `You walked out with Support ${g.support}.` : 'By the end, nobody outside was still writing.'}
+      </p>
+      <p className="small dim">The routine, the code, and how a write-up feels come from the designer's own time inside, not from research.</p>
+
+      <h3>2. Every choice is a compromise</h3>
+      <p>
+        Two rulebooks, the institution's and the yard's, pull in opposite directions, and almost every choice satisfies one by breaking the other. Every card
+        was written so a reasonable person could defend each option on it. None of them is free: each costs good time, Standing, commissary, or a person.
+        The rulebook punishes the one act that makes the yard leave you alone.
+      </p>
+      <p className="small">
+        The game counted {choices} of those choices from you{s.letGo ? `: you let ${s.letGo} thing${s.letGo === 1 ? '' : 's'} go` : ''}
+        {s.fights ? `, fought ${s.fights} time${s.fights === 1 ? '' : 's'}` : ''}{s.informed ? `, told ${s.informed} time${s.informed === 1 ? '' : 's'}` : ''}
+        {s.putInWork ? ', put in work' : ''}. Your file holds {g.infractions.filter((x) => x.result !== 'not_guilty').length} write-ups. What the yard kept, it never wrote down.
+      </p>
+
+      <h3>3. The same act does not cost everyone the same time</h3>
+      <p>
+        Nobody's sentence in this game comes from who the character is. It comes from what was done to them: a public defender with a full caseload, a bail
+        nobody could post, priors from a neighborhood with a patrol car on every corner. The prosecutor charges high and offers a deal, and the gap between
+        the two is the pressure to take it.
+      </p>
+      <p className="small">
+        {court && other
+          ? `You ${court.path === 'deal' ? 'took the deal' : 'went to trial'}: ${fmtMonths(court.months)}. The ${court.path === 'deal' ? 'trial' : 'deal'} would have meant ${fmtMonths(other.months)}. `
+          : ''}
+        On your charge, the same deal averaged {sent.white.toFixed(1)} months for the white backgrounds and {sent.others.toFixed(1)} for everyone else. Inside, the
+        same choices cost more write-ups for the characters the institution watches harder.
+      </p>
+      <ul className="small">
+        <li>{RESEARCH.ussc.finding}</li>
+        <li>{RESEARCH.waTaskForce.finding}</li>
+        <li>{RESEARCH.nyt.finding} Bias is a choice institutions make, and some make it less.</li>
+        <li>{RESEARCH.nyig.finding}</li>
+      </ul>
+
+      <p className="dim">Everyone gets released. The question the game asks is what kind of person the sentence made you, and who it made you into on paper.</p>
+
+      <details>
+        <summary className="small">Sources</summary>
+        <ul className="small">
+          <li>{src('ussc')}</li>
+          <li>{src('waTaskForce')}</li>
+          <li>{src('nyt')}</li>
+          <li>{src('nyig')}</li>
+          <li><a href={SOURCES.bjs.url} target="_blank" rel="noreferrer">{SOURCES.bjs.label}</a></li>
+          <li><a href={SOURCES.wa.url} target="_blank" rel="noreferrer">{SOURCES.wa.label}</a></li>
+          {POLICY.map((p) => <li key={p.label}><a href={p.url} target="_blank" rel="noreferrer">{p.label}</a></li>)}
+        </ul>
+        <p className="small dim">Set in a fictional state modeled on Washington's prisons, in a men's facility. It draws on one system and does not claim to speak for every prison.</p>
+      </details>
+    </div>
   );
 }
 
@@ -1137,5 +1246,57 @@ function Court({ g, act }: { g: Game; act: Act }) {
         </p>
       )}
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------- */
+
+/** Reception at Washington Corrections Center: DOC 310.150. You answer the questions; you don't get a copy. */
+function Reception({ g, act }: { g: Game; act: Act }) {
+  const r = g.intake!;
+  const f = facility(r.facilityId);
+  return (
+    <>
+      <h2>Reception</h2>
+      <div className="panel">
+        <p>
+          Washington Corrections Center, Shelton. You are Close custody until you are classified. Medical, dental, mental health, a substance use
+          assessment, an interview. You answer the questions. You are not given a copy of them.
+        </p>
+        <h3>Family and community support</h3>
+        {r.lost.length > 0 && <p className="small">The county jail already cost you {r.lost.join(', and ')}.</p>}
+        <p className="small">{r.kept.length ? `Still there: ${r.kept.join(', ')}.` : 'The counselor writes "none" on the line, and moves to the next question.'}</p>
+        <p className="small dim">You can look for more later. Strangers on pen pal sites write to people inside, sometimes.</p>
+      </div>
+      <div className="panel">
+        <h3>Initial Custody Designation: {r.icd}</h3>
+        {r.parts.map((x) => <div key={x.label} className="small">{x.v > 0 && x.label.startsWith('Starting') ? x.v : sign(x.v)} {x.label}</div>)}
+        <p className="small dim">DOC 310.150: Close 0 to 34, Medium 35 to 47, Minimum 48 and up. You can appeal the custody level within 72 hours. The facility can't be appealed.</p>
+        <p>
+          <b>{cap(r.custody)} custody{r.mi3 ? ' (MI3)' : ''}: {f.name}.</b> {f.front}
+          {r.mi3 ? ' More than six years to your earned release date, so minimum custody is served at a Level 3 facility.' : ''}
+        </p>
+      </div>
+      <div className="panel">
+        <h3>Washington ONE: {r.risk}</h3>
+        <p className="small dim">
+          A counselor interviews you about the six months before you were locked up. Four models score it: violent, property, drug, and general
+          felony. High on all three offense models is High Violent Property Drug. Otherwise the highest wins, violent before property before drug.
+          If none is high, the general felony model says Moderate or Lower. It doesn't set your custody. It sets your programming now and, if your
+          conviction carries community custody, how closely you're supervised when you get out.
+        </p>
+        <h3>Needs</h3>
+        {NEED_DOMAINS.map((d) => (
+          <div key={d} className="small">
+            {d}: {r.needs[d] ?? <span className="dim">not scored in this game</span>}
+          </div>
+        ))}
+        <p className="small dim">
+          The case manager works the High needs first. You'll be reassessed every {REASSESS_MONTHS} months. The needs can move. The risk level won't:
+          DOC is still in the norming period, so it stays where intake put it. You sign form 07-057, and you have {WA_ONE_APPEAL_DAYS} days to appeal in writing.
+        </p>
+      </div>
+      <button className="primary" onClick={() => act(beginSentence)}>Get on the chain bus to {f.name}</button>
+    </>
   );
 }

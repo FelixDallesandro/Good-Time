@@ -2,7 +2,7 @@ export type Stat = 'nerve' | 'hustle' | 'cool' | 'heart';
 export type Custody = 'minimum' | 'medium' | 'close';
 export type YardTag = 'test' | 'politics' | 'life' | 'special';
 export type RumorTag = 'charge' | 'cooperation' | 'debt' | 'family' | 'weak';
-export type Phase = 'draft' | 'sheet' | 'card' | 'result' | 'hub' | 'eyes' | 'mail' | 'release' | 'over';
+export type Phase = 'draft' | 'sheet' | 'reception' | 'card' | 'result' | 'hub' | 'eyes' | 'mail' | 'release' | 'over';
 export type Ending = 'released' | 'died' | 'medical' | 'pc';
 /** Something said in a message from outside that tells staff more than it should. */
 export type SlipId = 'ink' | 'phone' | 'efv' | 'money';
@@ -564,4 +564,20 @@ export interface Game {
     caught: number;
   };
   ending: Ending | null;
+  /** Reception at Washington Corrections Center: the classification that placed you, and who was still there. */
+  intake?: Intake | null;
+}
+
+export interface Intake {
+  icd: number;
+  parts: { label: string; v: number }[];
+  custody: Custody;
+  facilityId: string;
+  /** Minimum custody with more than six years to the earned release date: housed at a Level 3 facility. */
+  mi3: boolean;
+  risk: string;
+  lost: string[];
+  kept: string[];
+  /** Washington ONE criminogenic needs, as of the last reassessment. The risk level stays frozen. */
+  needs: Record<string, 'Low' | 'Mod' | 'High' | null>;
 }

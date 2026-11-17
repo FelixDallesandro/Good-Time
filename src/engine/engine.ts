@@ -4,6 +4,9 @@ import {
 } from './content';
 import { d, next, pickN, shuffle } from './rng';
 import { flaggedWords } from '../content/keywords';
+import { CATEGORY_POINTS, ICD_BASE, ICD_DEDUCT, ICD_ODDS, MI3_MONTHS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, TIE_LOSS, icdBand, waOne } from '../content/classification';
+import type { NeedLevel } from '../content/classification';
+import { CHARGE_CATEGORY } from '../content/recidivism';
 import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, insideSentence, sentenceFor, timeScale, type Fact, type Offer, type Path } from '../content/sentencing';
 import { TOPICS, compose, replyContext, type Topic } from './replies';
 import {
@@ -227,7 +230,7 @@ export function newGame(facilityId: string, seed: number): Game {
     missionsDrawn: 0, monthly: [], deferred: [], yardDeck: [], yardDiscard: [], countDeck: [], queue: [],
     cur: null, result: null, mo: emptyMonth(OFFICERS[0]), letters: [], outbox: [], inbox: [], rejections: [], routine: 0, release: null, ledger: [], report: [], lines: [],
     actUsed: {}, groove: newGroove(), stats: { letGo: 0, fights: 0, informed: 0, putInWork: 0, pullGiven: 0, pullWalked: 0, caught: 0 },
-    ending: null
+    ending: null, intake: null
   };
   s.draft = {
     charges: pickN(s, CHARGES.map((c) => c.id), 3),
@@ -256,12 +259,13 @@ export function conspFacts(facilityId: string, chargeId: string, backgroundId: s
 
 export function draftPick(
   g: Game,
-  pick: { chargeId: string; backgroundId: string; outsideId: string; name: string }
+  pick: { chargeId: string; backgroundId: string; outsideId?: string; name: string }
 ): Game {
   const s = clone(g);
   const ch = charge(pick.chargeId);
   const bg = background(pick.backgroundId);
-  const out = outside(pick.outsideId);
+  // nobody chooses who is still waiting: the Outside card is dealt
+  const out = outside(pick.outsideId ?? pickN(s, OUTSIDES.map((o) => o.id), 1)[0]);
 
   const stats = {} as Character['stats'];
   for (const k of STATS) {
@@ -424,6 +428,8 @@ function startMonth(s: Game) {
   }
   if (confined) L(s, 'Confinement to cell: one scene this month, in your cell.');
   else if (onSheet(s)) L(s, 'Loss of privileges: no yard, no gym, no dayroom. Your photo is on the sheet in the bubble.');
+  penPalMonth(s);
+  reassessMonth(s);
   const lvl = routineLevel(s);
   if (lvl > Number(s.flags.routineSeen ?? 0)) {
     s.flags.routineSeen = lvl;
@@ -1198,6 +1204,134 @@ function addBoxes(s: Game, n: number) {
  * Take the deal or go to trial. The deal is the reduced sheet at the agreed number, and you tell what you know. Trial
  * is the top of the range on everything charged. Either way, the real months become turns: at least 12 served.
  */
+/* Reception: DOC 310.150. Held at Close until classified; then the score places you. */
+
+const FACILITY_FOR = { close: 'granite', medium: 'harlan', minimum: 'cedar' } as const;
+
+/** Move into a facility at intake: its custody, its starting Standing, how its staff read your card. */
+function place(s: Game, facilityId: string, custody: Game['custody']) {
+  const f = facility(facilityId);
+  s.facilityId = f.id;
+  s.custody = custody;
+  s.standing = f.startStanding;
+  s.crsBase = facility(FACILITY_FOR[custody]).crs;
+  if (s.char) s.char.conspBase = conspFacts(f.id, s.char.chargeId, s.char.backgroundId).total;
+  if (custody === 'minimum') s.yardDeck = s.yardDeck.filter((id) => YARD.get(id)?.tag !== 'politics');
+  if (custody === 'close' && !s.strings.some((x) => x.to === 'your car')) s.strings.push({ type: 'debt', to: 'your car' });
+}
+
+/**
+ * Reception at Washington Corrections Center. The support interview records who is still there, the Initial Custody
+ * Designation sets custody and the facility, and Washington ONE sets a risk level. The player chooses none of it.
+ */
+export function classify(g: Game): Game {
+  if (g.phase !== 'sheet' || !g.char || !g.court || !CASES[g.char.chargeId]) return g;
+  const s = clone(g);
+  s.lines = [];
+  const bg = background(s.char!.backgroundId);
+  const sheet = CASES[s.char!.chargeId][s.court!.path];
+
+  // family and community support (I.C.4): the county jail already cost you some of them
+  const held = !!bg.case[1]?.bad;
+  const lost: string[] = [];
+  for (const t of s.ties) {
+    if (t.minor || t.gone) continue;
+    const p = (held ? TIE_LOSS.held : TIE_LOSS.home) / (t.weight >= 3 ? 2 : 1);
+    if (next(s) < p) {
+      t.gone = true;
+      lost.push(t.who);
+    }
+  }
+  for (const t of s.ties) if (t.minor && !t.gone && !tieActive(s, t)) lost.push(`${t.who}, who only comes with ${s.ties.find((x) => x.id === t.guardian)?.who ?? 'them'}`);
+  syncSupport(s);
+  const kept = activeTies(s).map((t) => t.who);
+
+  // the Initial Custody Designation (II.C)
+  const parts: { label: string; v: number }[] = [
+    { label: 'Starting value (game: the policy does not publish one)', v: ICD_BASE },
+    { label: `Crime category ${sheet.cat}: ${sheet.offense.toLowerCase()} (provisional)`, v: CATEGORY_POINTS[sheet.cat] }
+  ];
+  let violence = 0;
+  if (bg.priorDoc && next(s) < ICD_ODDS.violentInfraction) violence += ICD_DEDUCT.violentInfraction;
+  if (bg.priors && next(s) < ICD_ODDS.violentConviction) violence += ICD_DEDUCT.violentConviction;
+  violence = Math.min(violence, ICD_DEDUCT.violenceMax);
+  if (violence) parts.push({ label: 'History of violence: what is in your file from before', v: -violence });
+  if (bg.age < 29) parts.push({ label: 'Under 29 at classification', v: -ICD_DEDUCT.under29 });
+  const icd = Math.max(0, parts.reduce((a, x) => a + x.v, 0));
+  const custody = icdBand(icd);
+  const toErd = s.court!.months - s.court!.earnedMax;
+  const mi3 = custody === 'minimum' && toErd > MI3_MONTHS;
+  const facilityId = mi3 ? 'harlan' : FACILITY_FOR[custody];
+  place(s, facilityId, custody);
+
+  const risk = waOne({
+    category: CHARGE_CATEGORY[s.char!.chargeId] ?? 'public_order', priors: bg.score, young: bg.age < 29,
+    priorDoc: !!bg.priorDoc, habit: has(s, 'habit')
+  }).level;
+
+  s.intake = { icd, parts, custody, facilityId, mi3, risk, lost, kept, needs: {} };
+  s.intake.needs = assessNeeds(s);
+  s.phase = 'reception';
+  return s;
+}
+
+/**
+ * Washington ONE needs. Game mapping from what the game tracks; Education and Mental Health aren't tracked, so they
+ * aren't scored. The items and weights of the real tool aren't public.
+ */
+export function assessNeeds(s: Game): Record<string, NeedLevel> {
+  const lvl = (n: number): NeedLevel => (n >= 2 ? 'High' : n >= 1 ? 'Mod' : 'Low');
+  const adults = activeTies(s).filter((t) => !t.minor && t.role !== 'stranger').length;
+  const serious = s.infractions.filter((i) => i.serious && i.result !== 'not_guilty').length;
+  const general = s.infractions.filter((i) => !i.serious && i.result !== 'not_guilty').length;
+  const r: Record<string, NeedLevel> = {
+    Residential: adults >= 2 ? 'Low' : adults === 1 ? 'Mod' : 'High',
+    Education: null,
+    Employment: s.job ? 'Low' : 'Mod',
+    'Social Influences': lvl((has(s, 'affiliated') ? 2 : 0) + (s.strings.some((x) => x.type === 'debt') ? 1 : 0)),
+    'Substance Abuse': s.treatment.done ? 'Mod' : has(s, 'habit') || s.treatment.need > 0 ? 'High' : 'Low',
+    'Mental Health': null,
+    Aggression: lvl(s.stats.fights + (has(s, 'short_fuse') ? 1 : 0)),
+    'Attitudes & Behaviors': lvl(serious + (general >= 2 ? 1 : 0))
+  };
+  return Object.fromEntries(NEED_DOMAINS.map((d) => [d, r[d]]));
+}
+
+/** Every six real months until release: a new interview. The needs move; the risk level is frozen (norming period). */
+function reassessMonth(s: Game) {
+  if (!s.intake?.needs) return;
+  const due = Math.floor((s.m - 1) * (s.perTurn || 1) / REASSESS_MONTHS);
+  if (due <= Number(s.flags.waOneSeen ?? 0)) return;
+  s.flags.waOneSeen = due;
+  const before = s.intake.needs;
+  const after = assessNeeds(s);
+  const moved = NEED_DOMAINS.filter((d) => before[d] !== after[d]).map((d) => `${d} ${before[d]} to ${after[d]}`);
+  s.intake.needs = after;
+  L(s, `Washington ONE reassessment with your counselor. ${moved.length ? `Needs: ${moved.join(', ')}.` : 'Your needs come out the same.'} Your risk level stays ${s.intake.risk}: it is frozen while DOC is still norming the tool.`);
+}
+
+/* Looking for support: a pen pal listing, paid from your books. Strangers write, sometimes. */
+
+export const listingActive = (s: Game) => Number(s.flags.listingUntil ?? 0) >= s.m;
+
+export function postProfile(g: Game): Game {
+  if (g.phase !== 'hub' || listingActive(g) || g.commissary < PEN_PAL.cost) return g;
+  const s = clone(g);
+  s.lines = [];
+  s.commissary -= PEN_PAL.cost;
+  s.flags.listingUntil = s.m + Math.max(1, Math.round(PEN_PAL.months / (s.perTurn || 1)));
+  L(s, `You pay for a listing on a pen pal site: a photo from the dayroom wall, a hundred words about yourself, and your DOC number. Commissary -${PEN_PAL.cost}. It runs a year.`);
+  return s;
+}
+
+function penPalMonth(s: Game) {
+  if (!listingActive(s)) return;
+  const have = s.ties.filter((t) => t.id.startsWith('pen_pal') && !t.gone).length;
+  if (have >= PEN_PAL.max || next(s) >= PEN_PAL.odds) return;
+  L(s, 'A stranger read your listing and wrote.');
+  addTie(s, { id: 'pen_pal', who: 'your pen pal', to: 'my pen pal', role: 'stranger', weight: 1, visits: false, efv: false });
+}
+
 /** Assault findings that can be referred for a new felony. Not phones, not drugs (the designer's account). */
 const ASSAULT_CODES = ['633', '502'];
 /** Game odds of a referral: assaults are charged, but not always; more often with a weapon. */
