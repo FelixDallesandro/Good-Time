@@ -29,7 +29,7 @@ The game deals with violence, racism, drug use, debt and coercion, and it says s
 ## How a sentence goes
 
 1. **Draft a life.** You name your character, then keep one charge and one background. The background sets your age and your priors. Your Outside card (the people who still have you), your stats, your failings and your schooling are dealt or rolled. Schooling (a diploma, a GED, or neither) has to fit the background: work that asks for a diploma or equivalent always rolls one. Without either, you're placed in GED class (about a year) and can't hold a job inside until you pass.
-2. **Court.** The sentence comes from the Washington sentencing grid: the seriousness level against your offender score. You can take the deal, turn down the first offer (the next one may be better, the same or worse, or the prosecutor may pull it and send the case to trial), or go to trial. What happened at the arrest can add enhancements. If there was a codefendant, you can tell what you know.
+2. **Court.** The sentence comes from the Washington sentencing grid: the seriousness level against your offender score. You can take the deal, turn down the offer (the next one may be better, the same or worse, or the prosecutor may pull it and send the case to trial), or go to trial. You can keep turning offers down, but each refusal makes a pull likelier. What happened at the arrest can add enhancements. If there was a codefendant or a ring, you can agree to testify for the bottom of the range, and that can buy a deal back even after the offer is pulled.
 3. **Reception.** Everyone starts at Washington Corrections Center. There are three steps:
    - The interview records your Support.
    - The **Initial Custody Designation** (DOC 310.150) sets Close, Medium or Minimum custody, and the facility comes with it.
@@ -52,13 +52,17 @@ The game deals with violence, racism, drug use, debt and coercion, and it says s
 8. **Release and epilogue.** The gate, the first night and the first week. Then you see the following:
    - Community custody, if your conviction carries it (RCW 9.94A.701 and .703).
    - Whether you would qualify for Graduated Reentry.
-   - Your hidden case history, set beside every other background's for the same charge.
+   - What moved your sentence: your lawyer, where you waited before trial, and your priors. It shows what each one cost you and how often each lands on white backgrounds against everyone else, across the game's 20 backgrounds.
    - The ledger of every roll.
    - What the research says about who gets charged, sentenced and written up.
 
 Your own rolls (the Pull, stat checks, threats, whether a fight leaves you hurt) land on the screen as dice, with what each one needed. The Eyes are different: staff roll them behind a screen, and you only hear "clean" or "caught."
 
-The in-game **How to play** page is the full rulebook.
+When a roll's dice change (a new officer, a double shift, your file, your Cool), the added dice are ringed and marked +, the removed ones are struck through, and a chip names the cause. A strip under the top bar lists what changes the dice for the whole month.
+
+Nothing outside a scene sits on a menu. When something in your sentence makes an extra action worth weighing (two rumors about your secret are up, you could pay a debt before it is called, an officer wrote you up on his own say-so), the game stops between scenes and asks, on its own screen, with why now, what it costs, and what you get. Your Line Home and Code moves, and some of the Anyone moves, are moments that find you when their situation comes.
+
+The game teaches as you play. A tracker shows where you are in the month (Count, your scenes, the Eyes, visits and messages) and what the game wants from you right now. The first time something comes up, a short hint explains it; the title screen turns hints off. The **Glossary**, on the title screen and in the top bar, explains the words: inside talk, the institution's terms with their sources, and the game's own mechanics. The **How to play** page is the full rulebook, folded into sections for reference.
 
 ### Demo mode
 
@@ -84,7 +88,7 @@ TypeScript and React. There are no image assets. Node 20 or later.
 ```
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 136 tests: rules, decks, court, intake, routine, replies, UI render
+npm test           # 152 tests: rules, decks, court, intake, routine, replies, UI render
 npm run build      # type-check, then build the static site into dist/
 npm run sim        # balance simulation, 3,000 sentences per strategy per facility
 npx tsx scripts/discipline-sim.ts   # how discipline, visits and EFVs play out over whole sentences

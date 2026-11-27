@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BACKGROUNDS, CHARGES } from '../src/engine/content';
-import { beginSentence, choose, newCaseCard, chooseCourt, clock, draftPick, newGame, refuseOffer, releaseMonth, syncBoxes, TREATMENT_MISSES } from '../src/engine/engine';
+import { beginSentence, choose, newCaseCard, chooseCourt, clock, draftPick, newGame, refuseOffer, WITHDRAW_ODDS, releaseMonth, syncBoxes, TREATMENT_MISSES } from '../src/engine/engine';
 import { CASES, FACTS, insideSentence, MIN_TURNS, range, sentenceFor, timeScale, type Fact } from '../src/content/sentencing';
 import type { Game } from '../src/engine/types';
 import { playGame } from '../src/engine/autoplay';
@@ -126,24 +126,57 @@ describe('telling what you know', () => {
   });
 });
 
-describe('turning down the first offer', () => {
-  it('happens once, and comes back better, the same, worse, or pulled', () => {
+describe('turning down offers', () => {
+  it('comes back better, the same, worse, or pulled, and can be done again until it is pulled', () => {
     const seen = new Set<string>();
     for (let seed = 1; seed <= 60; seed++) {
       const g = draftPick(newGame('harlan', seed), { chargeId: 'burglary', backgroundId: 'b3', outsideId: 'mother', name: 'T' });
       const r = refuseOffer(g);
       seen.add(r.court!.offer);
-      expect(refuseOffer(r)).toBe(r);
+      expect(r.court!.refusals).toBe(1);
       if (r.court!.offer === 'better') expect(r.court!.months).toBeLessThanOrEqual(g.court!.months);
       if (r.court!.offer === 'worse') expect(r.court!.months).toBeGreaterThanOrEqual(g.court!.months);
       if (r.court!.offer === 'withdrawn') {
-        // no deal left to take: it's trial, and choosing the deal does nothing
+        // no deal left to take on its own: it's trial, and refusing again does nothing
         expect(r.court!.path).toBe('trial');
         expect(chooseCourt(r, 'deal')).toBe(r);
-        expect(chooseCourt(r, 'deal', true)).toBe(r);
+        expect(refuseOffer(r)).toBe(r);
+      } else {
+        const again = refuseOffer(r);
+        expect(again).not.toBe(r);
+        expect(again.court!.refusals).toBe(2);
       }
     }
     expect([...seen].sort()).toEqual(['better', 'same', 'withdrawn', 'worse']);
+  });
+  it('pulls the offer more often the more you turn it down', () => {
+    expect(WITHDRAW_ODDS.every((p, i) => i === 0 || p > WITHDRAW_ODDS[i - 1])).toBe(true);
+    const pulledBy = (times: number) => {
+      let pulled = 0;
+      for (let seed = 1; seed <= 300; seed++) {
+        let g = draftPick(newGame('harlan', seed), { chargeId: 'burglary', backgroundId: 'b3', outsideId: 'mother', name: 'T' });
+        g.court!.refusals = times;
+        g = refuseOffer(g);
+        if (g.court!.offer === 'withdrawn') pulled++;
+      }
+      return pulled;
+    };
+    expect(pulledBy(0)).toBeLessThan(pulledBy(1));
+    expect(pulledBy(1)).toBeLessThan(pulledBy(3));
+  });
+  it('lets you testify for a deal back after a pull, where there is someone to testify against', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const g = draftPick(newGame('harlan', seed), { chargeId: 'burglary', backgroundId: 'b3', outsideId: 'mother', name: 'T' });
+      g.court!.refusals = 3;
+      const r = refuseOffer(g);
+      if (r.court!.offer !== 'withdrawn') continue;
+      const back = chooseCourt(r, 'deal', true);
+      expect(back.court!.path).toBe('deal');
+      expect(back.court!.talked).toBe(true);
+      expect(back.court!.months).toBeLessThan(r.court!.months);
+      return;
+    }
+    throw new Error('never pulled');
   });
 });
 

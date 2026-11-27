@@ -415,6 +415,8 @@ export interface Month {
   discBlue: number;
   testWhite: number;
   warn: boolean; // Reyes on Shift: the first general is handled on site
+  warnBy?: string; // who handles it on site
+  noPetty?: boolean; // Kim on Shift: no officer's-call write-ups
   noVisits: boolean;
   confined: boolean; // cell confinement sanction: one scene, in the cell
   seriousGuilty: boolean; // no earned time this month
@@ -432,6 +434,22 @@ export interface Month {
   breaks: Break[];
   medicalDone: boolean;
   notes: string[]; // things that happened at the turn of an act
+  /** Why the dice are different this month, for the screen: Dahl's first week, a double shift, a holiday meal. */
+  why?: DiceWhy[];
+}
+
+/** One thing that changes the dice for a whole month. `kind` says which rolls: every roll, discretionary rules, or Test cards. */
+export interface DiceWhy {
+  label: string;
+  n: number;
+  kind: 'blue' | 'disc' | 'testWhite' | 'none';
+}
+
+/** One change to the dice on a single roll, and where it comes from. */
+export interface DiceMod {
+  label: string;
+  color: 'blue' | 'white';
+  n: number;
 }
 
 export interface Cur {
@@ -470,6 +488,8 @@ export interface Court {
   strike: boolean;
   talked: boolean;
   offer: 'first' | 'better' | 'same' | 'worse' | 'withdrawn';
+  /** How many offers you have turned down. Each one makes the next pull likelier. */
+  refusals?: number;
 }
 
 export interface Game {
@@ -524,8 +544,13 @@ export interface Game {
   usedMoves: Record<string, boolean>;
   pull: Record<string, { tallies: number; torn: boolean }>;
   privateFlipped: boolean;
+  /** Openings you passed on, and in what situation: they come back when the situation changes. */
+  offered?: Record<string, { sig: string; m: number }>;
   blueOnce: number;
   blueNext: number;
+  /** What the blue dice in blueOnce and blueNext are for, so the screen can say. */
+  blueOnceWhy?: string;
+  blueNextWhy?: string;
   extraLines: number;
   skipNext: number;
   visitPending: boolean;

@@ -56,5 +56,32 @@ export const BACKGROUNDS: Background[] = [
     case: [bad('Public defender.'), bad('Held.'), ok('First arrest.')] },
   { id: 'b12', credential: true, priors: true, priorDoc: true, ethnicity: 'White', age: 58, tattoo: false, rural: false, score: 2,
     front: 'White, 58. Army veteran. Lives in his truck.',
-    case: [bad('Public defender.'), ok("Home: a veterans' group posted bail."), bad('Priors.')] }
+    case: [bad('Public defender.'), ok("Home: a veterans' group posted bail."), bad('Priors.')] },
+  { id: 'b13', priors: true, ethnicity: 'Black', age: 36, tattoo: false, rural: false, score: 1,
+    front: 'Black, 36. Came from Somalia at nine. Drives a cab out of the airport.',
+    case: [bad('Public defender, through an interpreter he met at the hearing.'), bad('Held: the judge called him a flight risk.'), bad('A prior for driving on a license suspended over unpaid tickets.')] },
+  { id: 'b14', credential: true, priors: true, ethnicity: 'Latino', age: 45, tattoo: false, rural: false, score: 1,
+    front: "Latino, 45. Owns a landscaping company in the valley. Coaches his son's soccer team.",
+    case: [ok('Paid counsel.'), ok('Home until trial.'), bad('One prior, from a checkpoint twenty years ago.')] },
+  { id: 'b15', credential: true, ethnicity: 'Latino', age: 21, tattoo: false, rural: false, score: 0,
+    front: 'Latino, 21. Grew up in Harbor City. Two semesters of community college.',
+    case: [bad('Public defender.'), bad('Held: the bail was more than his family makes in a month.'), ok('First arrest.')] },
+  { id: 'b16', priors: true, ethnicity: 'Asian American', age: 26, tattoo: true, rural: false, score: 2,
+    front: "Vietnamese American, 26. Works nights at his family's restaurant in the south end. A name tattooed across his back.",
+    case: [bad('Public defender.'), ok('Home: his family put up the restaurant.'), bad('Priors from a shoplifting charge at nineteen, and the probation violations after it.')] },
+  { id: 'b17', credential: true, ethnicity: 'Asian American', age: 39, tattoo: false, rural: false, score: 0,
+    front: 'Filipino American, 39. Navy veteran. Works at the shipyard.',
+    case: [ok('Paid counsel.'), ok('Home until trial.'), ok('First arrest.')] },
+  { id: 'b18', priors: true, ethnicity: 'Pacific Islander', age: 23, tattoo: false, rural: false, score: 2,
+    front: 'Pacific Islander, 23. Chamorro; moved from Guam with his mother. Warehouse shifts.',
+    case: [bad('Public defender.'), bad('Held.'), bad('Priors from stops on the walk home from work.')] },
+  { id: 'b19', ethnicity: 'White', age: 29, tattoo: true, rural: false, score: 0,
+    front: 'White, 29. Grew up in Harbor City public housing. Roofs when there is work. Tattoos up both arms.',
+    case: [bad('Public defender.'), bad('Held.'), ok('First arrest.')] },
+  { id: 'b20', ethnicity: 'Native', age: 40, tattoo: false, rural: true, score: 0,
+    front: 'Native, 40. Raised on a reservation east of the mountains. Seasonal wildland fire crew.',
+    case: [bad('Public defender he met the morning of the plea.'), bad('Held: the jail was two hours from home, and so was the bail.'), ok('First arrest.')] }
 ];
+
+/** Draft hands never show two backgrounds from the same group. */
+export const groupOf = (b: Background) => b.ethnicity;

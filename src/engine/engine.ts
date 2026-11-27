@@ -6,7 +6,7 @@ import { d, next, pickN, shuffle } from './rng';
 import { flaggedWords } from '../content/keywords';
 import { CATEGORY_POINTS, ICD_BASE, ICD_DEDUCT, ICD_ODDS, MI3_MONTHS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, TIE_LOSS, icdBand, waOne, EDUCATION_ODDS, GED_MONTHS } from '../content/classification';
 import type { NeedLevel } from '../content/classification';
-import type { Education } from './types';
+import type { Background, Education } from './types';
 import { CHARGE_CATEGORY } from '../content/recidivism';
 import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, insideSentence, sentenceFor, timeScale, type Fact, type Offer, type Path } from '../content/sentencing';
 import { TOPICS, compose, replyContext, type Topic } from './replies';
@@ -15,7 +15,7 @@ import {
 } from '../content/violations';
 import type {
   Card, Character, Choice, Cond, Effect, Game, Groove, Hearing, Infraction, Letter, Month, Officer, PullDef, RollSpec, RumorTag,
-  OutMsg, ShownRoll, SlipId, Stat, Style, Tie, TieDef, TieOp
+  DiceMod, DiceWhy, OutMsg, ShownRoll, SlipId, Stat, Style, Tie, TieDef, TieOp
 } from './types';
 
 export const STATS: Stat[] = ['nerve', 'hustle', 'cool', 'heart'];
@@ -146,6 +146,9 @@ export interface Dice {
   gray: number; // cameras: the risk you can't count
   rumor: number;
   applies: boolean; // Conspicuity applies to this roll
+  baseBlue: number; // what the card itself rolls, before anything changes it
+  baseWhite: number;
+  mods: DiceMod[]; // every change, and where it comes from
   total: number;
   pct: number;
   visible: number; // the eyes you can see
@@ -156,28 +159,69 @@ export function computeDice(s: Game, spec: RollSpec): Dice {
   const c = consp(s);
   const disc = !!spec.discretionary;
   const applies = disc || !!spec.search;
-  let blueNo = spec.blue ?? 0;
+  const mods: DiceMod[] = [];
+  const blueMod = (label: string, n: number) => n && mods.push({ label, color: 'blue', n });
+  const whiteMod = (label: string, n: number) => n && mods.push({ label, color: 'white', n });
+  /** Month-long changes, named where the game knows the name. */
+  const fromWhy = (kind: DiceWhy['kind'], total: number, add: (l: string, n: number) => unknown) => {
+    let left = total;
+    for (const w of s.mo.why ?? []) {
+      if (w.kind !== kind || !w.n) continue;
+      add(w.label, w.n);
+      left -= w.n;
+    }
+    if (left) add('This month', left);
+  };
+  const baseBlue = spec.blue ?? 0;
+  let blueNo = baseBlue;
   blueNo += s.mo.blueMonth + s.blueOnce;
-  if (s.char?.knownOfficer && s.mo.officer.name === s.char.knownOfficer) blueNo += 1;
+  fromWhy('blue', s.mo.blueMonth, blueMod);
+  blueMod(s.blueOnceWhy ?? 'Your next roll', s.blueOnce);
+  if (s.char?.knownOfficer && s.mo.officer.name === s.char.knownOfficer) {
+    blueNo += 1;
+    blueMod(`${s.mo.officer.name} knows you from before`, 1);
+  }
   if (disc) {
     blueNo += s.mo.discBlue;
-    if (s.mo.officer.mood === 'cruel') blueNo += 1;
-    if (s.mo.officer.mood === 'decent') blueNo -= 1;
-    if (has(s, 'mouthy')) blueNo += 1;
-    if (hasPriors(s)) blueNo += 1; // they read the file
+    fromWhy('disc', s.mo.discBlue, blueMod);
+    if (s.mo.officer.mood === 'cruel') {
+      blueNo += 1;
+      blueMod(`${s.mo.officer.name} is on shift`, 1);
+    }
+    if (s.mo.officer.mood === 'decent') {
+      blueNo -= 1;
+      blueMod(`${s.mo.officer.name} is on shift`, -1);
+    }
+    if (has(s, 'mouthy')) {
+      blueNo += 1;
+      blueMod('Mouthy', 1);
+    }
+    if (hasPriors(s)) {
+      blueNo += 1; // they read the file
+      blueMod('Your file: priors', 1);
+    }
   }
   blueNo = Math.max(0, blueNo);
+  if (applies) blueMod('Conspicuity', c);
   let blue = Math.max(0, blueNo + (applies ? c : 0));
-  if (s.mo.noBlue) blue = 0;
+  if (s.mo.noBlue && blue > 0) {
+    blueMod((s.mo.why ?? []).find((w) => w.kind === 'none')?.label ?? 'No blue dice this month', -blue);
+    blue = 0;
+  }
   const baseWhite = spec.white ?? 0;
   let white = baseWhite > 0 ? Math.max(0, baseWhite - statMod(s, 'cool')) : 0;
-  if (baseWhite > 0 && s.cur?.card.tag === 'test') white += (s.cur.extraWhite ?? 0) + s.mo.testWhite;
+  if (baseWhite > 0) whiteMod('Cool', -statMod(s, 'cool'));
+  if (baseWhite > 0 && s.cur?.card.tag === 'test') {
+    white += (s.cur.extraWhite ?? 0) + s.mo.testWhite;
+    whiteMod('You looked away last time', s.cur.extraWhite ?? 0);
+    fromWhy('testWhite', s.mo.testWhite, whiteMod);
+  }
   const gray = (spec.gray ?? 0) + (s.custody === 'close' ? 1 : 0);
   const rumor = s.rumors.length;
   const visible = blue + white + rumor;
   const total = visible + gray;
   return {
-    blueNo, blue, white, gray, rumor, applies, total, pct: caughtChance(total),
+    blueNo, blue, white, gray, rumor, applies, baseBlue, baseWhite, mods, total, pct: caughtChance(total),
     visible, visiblePct: caughtChance(visible)
   };
 }
@@ -190,6 +234,7 @@ function addBreak(
 ) {
   const dice = computeDice(s, spec);
   s.blueOnce = 0;
+  delete s.blueOnceWhy;
   s.mo.breaks.push({
     title,
     dice: { blueNo: dice.blueNo, blue: dice.blue, white: dice.white, gray: dice.gray, rumor: dice.rumor, applies: dice.applies },
@@ -235,10 +280,22 @@ export function newGame(facilityId: string, seed: number): Game {
   };
   s.draft = {
     charges: pickN(s, CHARGES.map((c) => c.id), 3),
-    backgrounds: pickN(s, BACKGROUNDS.map((b) => b.id), 3),
+    backgrounds: pickDistinct(s),
     outsides: pickN(s, OUTSIDES.map((o) => o.id), 3)
   };
   return s;
+}
+
+/** Three backgrounds, each from a different group: a hand never offers two lives that look alike from outside. */
+function pickDistinct(s: Game): string[] {
+  const out: string[] = [];
+  for (const b of pickN(s, BACKGROUNDS.map((x) => x.id), BACKGROUNDS.length)) {
+    const g = background(b).ethnicity;
+    if (out.some((o) => background(o).ethnicity === g)) continue;
+    out.push(b);
+    if (out.length === 3) break;
+  }
+  return out;
 }
 
 /** Conspicuity is not rolled: it's the facts on your public card, read through this facility's card. */
@@ -365,9 +422,20 @@ function shuffleIn(s: Game, id: string) {
   s.yardDeck.splice(at, 0, id);
 }
 
+/** Count cards about one week that happens once: a new officer's first week, an old one's last. */
+const ONCE_COUNT = ['new_officer', 'pruitt'];
+/** In segregation you are off the unit: only these count cards can still reach you there. */
+const SEG_COUNT = ['the_offer', 'validation_sweep', 'random_ua', 'mailroom_backlog', 'visiting_closed', 'price_increase', 'class_canceled'];
+
+/** Prompts that happen on the unit, so never to someone in seg. */
+const UNIT_PROMPTS = ['living_with_it', 'targeted', 'leak_told', 'leak_about', 'send_off'];
+
 /** Count cards that only mean something if they can touch you. One that can't goes to the bottom of the deck. */
 function countApplies(s: Game, id: string): boolean {
+  if (ONCE_COUNT.includes(id) && s.flags[`once_${id}`]) return false; // Dahl is only new once; Pruitt only retires once
+  if (s.segUntil >= s.m && !SEG_COUNT.includes(id)) return false; // the unit's business happens without you
   if (id === 'visiting_closed') return visitingTies(s).length > 0; // a closed room costs nothing to someone nobody visits
+  if (id === 'transfer_bus') return !!s.cellieId;
   return true;
 }
 
@@ -423,16 +491,17 @@ function startMonth(s: Game) {
   const efvNow = efvMonth(s);
   const seg = s.segUntil >= s.m;
   const confined = !seg && s.confinedUntil >= s.m;
-  if (seg) L(s, 'Administrative segregation. The final review comes inside thirty days. No scenes this month.');
-  else if (s.segUntil === s.m - 1) {
-    L(s, 'Final review: released to general population.');
+  const placed = s.segPlacements[s.segPlacements.length - 1];
+  if (seg) L(s, `Administrative segregation, ${segReason(placed)}. The final review comes inside thirty days. No scenes this month.`);
+  else if (placed && s.segUntil === s.m - 1) {
+    L(s, `Final review. You were placed in segregation in ${clock(s, placed.m)}, ${segReason(placed)}. You are released back to general population.`);
     if (s.job) {
       s.job = false;
       L(s, 'You went to seg from the workers tier. That privilege is gone: no job, and a new cell on a regular tier.');
       newCellie(s);
-    } else if (next(s) < 0.5) L(s, 'You go back to the same cell.');
+    } else if (next(s) < 0.5) L(s, 'Your cell is still yours. You go back to it, and to your cellie.');
     else {
-      L(s, 'Your old cell has been filled. You are assigned a new one.');
+      L(s, 'While you were in seg, your bunk went to someone else. You are assigned a new cell.');
       newCellie(s);
     }
   }
@@ -463,15 +532,17 @@ function startMonth(s: Game) {
     s.mo.confined = true;
   }
   s.mo.blueMonth = s.blueNext;
+  if (s.blueNext) (s.mo.why ??= []).push({ label: s.blueNextWhy ?? 'Staff remember last month', n: s.blueNext, kind: 'blue' });
   s.blueNext = 0;
+  delete s.blueNextWhy;
   s.queue = [first];
   if (act === 'short') s.queue.push(drawCount(s));
   if (lvl >= 2 && !seg && next(s) < 0.5) s.queue.push(countCard(s));
   if (!seg && treatmentDue(s)) s.queue.push(treatmentCard(s));
   if (s.flags.newCaseAt && s.m >= Number(s.flags.newCaseAt)) s.queue.push(newCaseCard(s));
   if (s.flags.exposeAt && !s.flags.exposed && s.m >= Number(s.flags.exposeAt) && !seg) s.queue.push(paperworkCard(s));
-  if (s.standing === 0) s.queue.push(clone(PROMPTS.get('targeted')!));
-  if (s.m >= 2 && !s.actUsed[act].leak && next(s) < 0.35) {
+  if (s.standing === 0 && !seg) s.queue.push(clone(PROMPTS.get('targeted')!));
+  if (s.m >= 2 && !seg && !s.actUsed[act].leak && next(s) < 0.35) {
     s.actUsed[act].leak = true;
     s.queue.push(clone(PROMPTS.get(next(s) < 0.65 ? 'leak_told' : 'leak_about')!));
   }
@@ -484,10 +555,12 @@ function startMonth(s: Game) {
     s.actUsed[act].sendoff = true;
     s.queue.push(clone(PROMPTS.get('send_off')!));
   }
-  if (cellieOf(s).has && !s.flags.living_seen && s.m >= 2 && s.m <= 6 && next(s) < 0.5) {
+  if (cellieOf(s).has && !seg && !s.flags.living_seen && s.m >= 2 && s.m <= 6 && next(s) < 0.5) {
     s.flags.living_seen = true;
     s.queue.push(clone(PROMPTS.get('living_with_it')!));
   }
+  // the moves are moments: each one finds you when its situation comes, not from a menu
+  if (!seg) queueMoments(s, act);
   // The Pull is never a choice: you roll for it
   const skip = !!s.flags.skip_pull;
   delete s.flags.skip_pull;
@@ -499,6 +572,38 @@ function startMonth(s: Game) {
     }
   }
   showNext(s);
+}
+
+/**
+ * Your Line Home and Code moves, and two of the Anyone moves, are moments, not buttons. Each finds you once its
+ * situation comes up: someone outside wrote, your car needs something, an officer wants a word after a write-up.
+ * Late in the sentence the one-time moves come for sure, so nobody walks out without facing them.
+ */
+function queueMoments(s: Game, act: Act) {
+  if (!s.char) return;
+  s.actUsed[act] ??= {};
+  const late = s.m >= Math.max(4, Math.floor(s.sentence * 0.6));
+  const code = codeMove(s.char.codeMoveId);
+  if (!s.usedMoves[code.id] && s.m >= 3 && (late || next(s) < 0.2)) {
+    s.usedMoves[code.id] = true;
+    s.queue.push(clone(code));
+  }
+  const lh = outside(s.char.outsideId).lineHome;
+  const p = primaryTie(s);
+  const wrote = s.inbox.some((x) => x.m >= s.m - 1);
+  if (!s.usedMoves[lh.id] && s.m >= 2 && p && tieActive(s, p) && (late || (wrote && next(s) < 0.4))) {
+    s.usedMoves[lh.id] = true;
+    s.queue.push(clone(lh));
+  }
+  // an officer wants a word after a write-up; someone needs a hand. Once a stretch each, at most.
+  const writtenUp = s.infractions.some((x) => x.m === s.m - 1 && x.result !== 'not_guilty');
+  if (writtenUp && !s.actUsed[act].question && next(s) < 0.4) {
+    s.actUsed[act].question = true;
+    s.queue.push(clone(ANYONE_MOVES.find((m) => m.id === 'any_question')!));
+  } else if (s.m >= 2 && !s.actUsed[act].hand && next(s) < 0.2) {
+    s.actUsed[act].hand = true;
+    s.queue.push(clone(ANYONE_MOVES.find((m) => m.id === 'any_hand')!));
+  }
 }
 
 export function pullCard(s: Game, def: PullDef): Card {
@@ -521,6 +626,9 @@ function showNext(s: Game) {
     s.countDeck.push(card.id);
     return showNext(s);
   }
+  // a cellie moved out before his card came up takes his card with him
+  if (card.id === 'living_with_it' && !cellieOf(s).has) return showNext(s);
+  if (card.kind === 'count' && ONCE_COUNT.includes(card.id)) s.flags[`once_${card.id}`] = true;
   if (card.rule === 'property' && s.commissary <= 10) {
     card.choices = undefined;
     card.text += ' You are under the limit. Nothing happens.';
@@ -553,6 +661,12 @@ function unwanted(s: Game, c: Card): boolean {
   if (c.needsTie && !activeTies(s).some((t) => c.needsTie!.includes(t.role))) return true;
   if (c.id === 'weight_pile' && s.flags.noWeights) return true;
   if (c.id === 'leverage' && s.support === 0) return true;
+  // cards about a job need one, or need you without one
+  if (c.id === 'the_run' && !s.job) return true;
+  if (c.id === 'kitchen_job' && s.job) return true;
+  // cards about what your cellie has going need a cellie with something going
+  if ((c.id === 'phone_vent' || c.id === 'store_man') && !cellieOf(s).has) return true;
+  if (c.id === 'store_man' && s.cellieId === 'store') return true; // he is the store man
   if (s.mo.lockdown && c.tag !== 'life') return true;
   if (c.tag === 'special') return false; // Missions and Leverage are never discarded by Standing
   const poliLocked = s.custody === 'close' || has(s, 'affiliated');
@@ -1124,20 +1238,49 @@ function countAuto(s: Game, card: Card) {
       break;
     case 'dahl':
       s.mo.discBlue += 1;
+      (s.mo.why ??= []).push({ label: "Dahl's first week", n: 1, kind: 'disc' });
       L(s, '+1 blue die on every discretionary rule this month.');
       break;
     case 'brandt':
       if (s.flags.grievance) {
         s.mo.blueMonth += 2;
+        (s.mo.why ??= []).push({ label: 'Brandt remembers your grievance', n: 2, kind: 'blue' });
         L(s, 'You filed a grievance. +2 blue dice this month.');
       } else L(s, 'He has nothing on you. Yet.');
       break;
     case 'reyes':
       s.mo.warn = true;
+      s.mo.warnBy = 'Reyes';
       L(s, 'The first minor this month becomes a warning.');
+      break;
+    case 'kim':
+      s.mo.noPetty = true;
+      L(s, "No officer's-call write-ups this month.");
+      break;
+    case 'ostrander':
+      if (s.infractions.some((x) => x.result !== 'not_guilty' && s.m - x.m < 3)) {
+        s.mo.blueMonth += 1;
+        (s.mo.why ??= []).push({ label: 'Ostrander read your write-ups', n: 1, kind: 'blue' });
+        L(s, 'Your name is in his log. +1 blue die on every roll this month.');
+      } else L(s, 'Your name is not in his log. This time.');
+      break;
+    case 'trainee':
+      s.mo.discBlue += 1;
+      s.mo.warn = true;
+      s.mo.warnBy = 'Tafoya';
+      (s.mo.why ??= []).push({ label: "Tafoya's trainee", n: 1, kind: 'disc' });
+      L(s, '+1 blue die on every discretionary rule this month. The first general becomes a warning.');
+      break;
+    case 'pike':
+      if (onSheet(s)) {
+        s.mo.blueMonth += 2;
+        (s.mo.why ??= []).push({ label: 'Pike has your photo', n: 2, kind: 'blue' });
+        L(s, 'Your photo is on his sheet. +2 blue dice on every roll this month.');
+      } else L(s, 'You are not on the sheet.');
       break;
     case 'double':
       s.mo.blueMonth -= 1;
+      (s.mo.why ??= []).push({ label: 'Moss on a double shift', n: -1, kind: 'blue' });
       L(s, '-1 blue die on every roll this month.');
       break;
     case 'price':
@@ -1170,6 +1313,7 @@ function countAuto(s: Game, card: Card) {
     case 'holiday':
       s.commissary += 1;
       s.mo.testWhite += 1;
+      (s.mo.why ??= []).push({ label: 'Holiday meal', n: 1, kind: 'testWhite' });
       L(s, 'Commissary +1. Test cards add 1 white die this month.');
       break;
     case 'clear':
@@ -1257,7 +1401,7 @@ export function classify(g: Game): Game {
   const sheet = CASES[s.char!.chargeId][s.court!.path];
   const c = s.court!;
   decide(s, 'Court',
-    `${c.offer === 'withdrawn' ? 'Turned down the first offer. The prosecutor pulled the deal, and the case went to trial' : c.path === 'trial' ? 'Went to trial' : c.offer !== 'first' ? 'Turned down the first offer, then took the deal' : 'Took the deal'}${c.talked ? ', and told what you knew' : ''}`,
+    `${courtStory(c)}${c.talked ? ', and testified' : ''}`,
     `${fmtMonths(c.months)}${c.path === 'trial' ? ', the top of the range on everything charged' : ''}.`);
 
   // family and community support (I.C.4): the county jail already cost you some of them
@@ -1445,7 +1589,8 @@ export function setCourt(s: Game, path: Path, talk = false, offer: Offer = s.cou
   s.court = {
     path, offense: sen.sheet.offense, rcw: sen.sheet.rcw, level: sen.sheet.level, grid: sen.sheet.grid,
     counts: sen.sheet.counts + sen.extra.length, score: sen.score, range: sen.range, base: sen.base, enhs: sen.enhs, facts,
-    enhMonths: sen.enhMonths, months: sen.months, earnedMax: sen.earnedMax, strike: sen.sheet.strike, talked: talk, offer
+    enhMonths: sen.enhMonths, months: sen.months, earnedMax: sen.earnedMax, strike: sen.sheet.strike, talked: talk, offer,
+    refusals: s.court?.refusals ?? 0
   };
   s.perTurn = t.perTurn;
   s.sentence = t.turns;
@@ -1464,30 +1609,49 @@ function decide(s: Game, what: string, choice: string, cost?: string) {
   (s.decisions ??= []).push({ m: s.m, what, choice, ...(cost ? { cost } : {}) });
 }
 
+/** What happened in court, in one line, for the decisions list. */
+function courtStory(c: NonNullable<Game['court']>): string {
+  const n = c.refusals ?? 0;
+  const turned = n === 1 ? 'Turned down an offer' : `Turned down ${n} offers`;
+  if (c.offer === 'withdrawn') return c.path === 'deal' ? `${turned}. The prosecutor pulled the deal, and you bought one back` : `${turned}. The prosecutor pulled the deal, and the case went to trial`;
+  if (c.path === 'trial') return n ? `${turned}, then went to trial` : 'Went to trial';
+  return n ? `${turned}, then took the deal` : 'Took the deal';
+}
+
 /** Choose at intake, before the sentence begins. Talking is only on the table where there is someone to tell on. */
 export function chooseCourt(g: Game, path: Path, talk = false): Game {
   if (g.phase !== 'sheet' || !g.char || !CASES[g.char.chargeId]) return g;
-  if (path === 'deal' && g.court?.offer === 'withdrawn') return g; // there is no deal to take
+  // there is no deal to take, unless you buy one back with what you know
+  if (path === 'deal' && g.court?.offer === 'withdrawn' && !(talk && CASES[g.char.chargeId].info)) return g;
   const s = clone(g);
   setCourt(s, path, talk);
   return s;
 }
 
 /**
- * Odds after turning down the first offer (game numbers): sometimes better, usually the same, sometimes worse, and
- * sometimes the prosecutor pulls the offer altogether and the case goes to trial.
+ * Odds after turning down an offer (game numbers): sometimes better, usually the same, sometimes worse, and sometimes
+ * the prosecutor pulls the offer altogether and the case goes to trial. Patience runs out: every offer you turn down
+ * makes the next pull likelier, and what is left is split better, same, worse in these proportions.
  */
 export const OFFER_ODDS = { better: 0.3, same: 0.4, worse: 0.15, withdrawn: 0.15 };
+/** The chance the next refusal gets the offer pulled, by how many you have already turned down (game numbers). */
+export const WITHDRAW_ODDS = [0.15, 0.35, 0.6, 0.85];
+export const withdrawChance = (court: { refusals?: number } | null | undefined) =>
+  WITHDRAW_ODDS[Math.min(court?.refusals ?? 0, WITHDRAW_ODDS.length - 1)];
 
-/** Turn down the first offer, once. The prosecutor doesn't want a trial either, usually. */
+/** Turn down the offer on the table. You can keep doing it until the prosecutor stops making them. */
 export function refuseOffer(g: Game): Game {
-  if (g.phase !== 'sheet' || !g.char || !g.court || g.court.offer !== 'first') return g;
+  if (g.phase !== 'sheet' || !g.char || !g.court || g.court.offer === 'withdrawn') return g;
   const s = clone(g);
-  const r = next(s);
+  const pull = withdrawChance(g.court);
   const o = OFFER_ODDS;
-  const offer: Offer = r < o.better ? 'better' : r < o.better + o.same ? 'same' : r < o.better + o.same + o.worse ? 'worse' : 'withdrawn';
+  const rest = o.better + o.same + o.worse;
+  const r = next(s);
+  const u = (r - pull) / (1 - pull); // where the roll falls among the offers that stay on the table
+  const offer: Offer = r < pull ? 'withdrawn' : u < o.better / rest ? 'better' : u < (o.better + o.same) / rest ? 'same' : 'worse';
   if (offer === 'withdrawn') setCourt(s, 'trial', false, offer);
   else setCourt(s, 'deal', g.court.talked, offer);
+  s.court!.refusals = (g.court.refusals ?? 0) + 1;
   return s;
 }
 
@@ -1875,17 +2039,25 @@ function apply(s: Game, e: Effect | undefined, ch?: Choice) {
     s.extraLines += 1;
     L(s, 'You may write an extra line home.');
   }
-  if (e.blueNext) s.blueNext += e.blueNext;
+  const from = s.cur?.card.title;
+  if (e.blueNext) {
+    s.blueNext += e.blueNext;
+    s.blueNextWhy = from ? `Staff remember: ${from}` : 'Staff remember last month';
+    L(s, `+${e.blueNext} blue ${e.blueNext === 1 ? 'die' : 'dice'} on every roll next month.`);
+  }
   if (e.blueOnce) {
     s.blueOnce += e.blueOnce;
+    s.blueOnceWhy = from ? `Staff remember: ${from}` : 'Your next roll';
     L(s, '+1 blue die on your next roll.');
   }
   if (e.blueMonth) {
     s.mo.blueMonth += e.blueMonth;
+    (s.mo.why ??= []).push({ label: from ?? 'This month', n: e.blueMonth, kind: 'blue' });
     L(s, `+${e.blueMonth} blue dice on everything this month.`);
   }
   if (e.noBlue) {
     s.mo.noBlue = true;
+    (s.mo.why ??= []).push({ label: from ? `${from}: no blue dice` : 'No blue dice this month', n: 0, kind: 'none' });
     L(s, 'No blue dice this month.');
   }
   if (e.statDelta) {
@@ -1915,7 +2087,7 @@ function apply(s: Game, e: Effect | undefined, ch?: Choice) {
   if (e.sentence) addSentence(s, e.sentence);
   if (e.defer) s.deferred.push({ unit: e.defer.unit, left: e.defer.in, chance: e.defer.chance, effect: e.defer.effect });
   if (e.monthly) s.monthly.push(e.monthly);
-  if (e.cellieCut) {
+  if (e.cellieCut && cellieOf(s).has) {
     const ce = cellieOf(s);
     L(s, `You take a cut from ${ce.name}. If it's found, you take the tag.`);
     apply(s, ce.cut);
@@ -2044,6 +2216,8 @@ export function stayIn(g: Game): Game {
   s.actUsed[act].stay = n;
   s.mo.scenesLeft--;
   L(s, 'You spend the scene in your cell, writing. No Yard card.');
+  s.extraLines += 1;
+  L(s, 'You may write an extra line home.');
   if (n >= 2) {
     L(s, 'The yard notices who never comes out.');
     addStanding(s, -1);
@@ -2134,10 +2308,10 @@ function offenseTier(s: Game, serious: boolean): 0 | 1 | 2 {
 
 function generalInfraction(s: Game, code: string, source: string, discretionary = false) {
   const v = violation(code);
-  if (s.mo.warn) {
+  if (s.mo.warn && !discretionary) { // another officer's own write-up is his, not Reyes's to handle
     s.mo.warn = false;
     s.infractions.push({ m: s.m, code, source, serious: false, result: 'onsite', discretionary });
-    L(s, `${source}: ${s.mo.officer.name} handles it on site. A Behavior Observation Entry goes in your file. No infraction report.`);
+    L(s, `${source}: ${s.mo.warnBy ?? 'Reyes'} handles it on site. A Behavior Observation Entry goes in your file. No infraction report.`);
     return;
   }
   const tier = offenseTier(s, false);
@@ -2170,10 +2344,24 @@ function check657(s: Game) {
  * Administrative segregation (DOC 320.200): out of general population until staff decide where you belong. Reviews
  * at 2 business days, 14 days, and 30. Thirty days is the most, whatever the placement is called.
  */
+/** Why you were placed in seg, in a few words, for the months that follow. */
+function segReason(p?: { why: string; discretionary: boolean }): string {
+  if (!p) return 'pending review';
+  if (p.why.startsWith('a fight')) return 'after a fight';
+  if (p.why.startsWith('for your own safety')) return 'for your own safety';
+  if (p.why.startsWith('pending')) return 'pending an investigation nobody explains';
+  return 'as a threat to the orderly operation of the facility';
+}
+
 function placeSeg(s: Game, why: string, discretionary: boolean) {
   if (s.segUntil > s.m) return;
   s.segUntil = s.m + 1;
   s.segPlacements.push({ m: s.m, why, discretionary });
+  // walked off the unit: the rest of the month's scenes, and anything waiting on the unit, are gone
+  s.mo.seg = true;
+  s.mo.scenesLeft = 0;
+  s.mo.sceneInit = true;
+  s.queue = s.queue.filter((c) => (c.kind === 'count' ? SEG_COUNT.includes(c.id) : c.kind !== 'yard' && !UNIT_PROMPTS.includes(c.id)));
   L(s, `A lieutenant places you on administrative segregation: ${why}. You are cuffed and walked off the unit. Reviews at two days, fourteen days, and thirty. Thirty days is the most anyone can hold you there.`);
 }
 
@@ -2458,7 +2646,7 @@ export function rollEyes(g: Game): Game {
   // discretion: some officers can always find something, and they look harder at some men than others
   const o = s.mo.officer;
   const petty = (o.mood === 'cruel' ? 0.3 : o.name === 'Dahl' ? 0.25 : o.mood === 'decent' ? 0.02 : 0.08) + 0.05 * Math.max(0, consp(s)) + (hasPriors(s) ? 0.05 : 0);
-  if (next(s) < petty) {
+  if (!s.mo.noBlue && !s.mo.noPetty && next(s) < petty) {
     const code = PETTY[Math.floor(next(s) * PETTY.length)];
     L(s, `${o.name} writes you up. CAUGHT. It is the officer's call, and the officer made it.`);
     generalInfraction(s, code, `${o.name}'s write-up`, true);
@@ -3029,6 +3217,40 @@ export function ledgerRows(s: Game): LedgerRow[] {
     rows.push({ consp: c, expectedCaught: exp, cleanChance: clean });
   }
   return rows;
+}
+
+/**
+ * What moved your number: the same deal on the same charge, with one fact of your case changed at a time, and how often
+ * each fact lands on the white backgrounds against everyone else. The factors, not the cards.
+ */
+export function sentencingFactors(chargeId: string, backgroundId: string) {
+  const bg = background(backgroundId);
+  const bad = bg.case.map((c) => c.bad);
+  const deal = (score: number, flags: boolean[]) => sentenceFor(chargeId, score, 'deal', flags).months;
+  const yours = deal(bg.score, bad);
+  const share = (xs: Background[], f: (b: Background) => boolean) => (xs.length ? xs.filter(f).length / xs.length : 0);
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+  const side = (xs: Background[]) => ({
+    n: xs.length,
+    defender: share(xs, (b) => b.case[0].bad),
+    held: share(xs, (b) => b.case[1].bad),
+    priors: share(xs, (b) => b.score > 0),
+    months: avg(xs.map((b) => deal(b.score, b.case.map((c) => c.bad))))
+  });
+  return {
+    yours,
+    factors: [
+      { id: 'counsel', label: 'A lawyer', yours: bg.case[0].text, bad: bad[0], ifNot: deal(bg.score, [false, bad[1], bad[2]]),
+        why: 'A public defender with a full caseload has hours for your case, not days. Paid counsel follows money.' },
+      { id: 'bail', label: 'Where you waited', yours: bg.case[1].text, bad: bad[1], ifNot: deal(bg.score, [bad[0], false, bad[2]]),
+        why: 'Someone held in jail before trial pleads sooner and takes more: every week waiting costs a job, a home, a family. Bail follows money.' },
+      { id: 'priors', label: 'Prior convictions', yours: bg.case[2].text, bad: bg.score > 0, ifNot: deal(0, bad),
+        why: "Each prior adds to the offender score, and the score moves the whole range. Priors follow policing: where the patrol cars are, and who gets stopped." }
+    ],
+    best: deal(0, [false, false, false]),
+    white: side(BACKGROUNDS.filter((b) => b.ethnicity === 'White')),
+    others: side(BACKGROUNDS.filter((b) => b.ethnicity !== 'White'))
+  };
 }
 
 /** The sentencing ledger: lay every Background side by side and compare the time. */

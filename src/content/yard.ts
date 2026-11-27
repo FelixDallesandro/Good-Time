@@ -247,15 +247,15 @@ const LIFE: Card[] = [
     text: 'A call home: someone you love has died. The funeral furlough is denied.',
     choices: [
       { id: 'grieve', label: 'Grieve in your cell', text: 'Skip your next scene, and write two lines at mail call.', effect: { skipScene: 1, extraLine: true } },
-      { id: 'grievance', label: 'File a grievance', text: 'Staff decides; it is "resolved." The officer named rolls +1 blue against you next month.', effect: { blueNext: 1, flag: 'grievance' } },
+      { id: 'grievance', label: 'File a grievance', text: 'Staff decides; it is "resolved." Staff remember who files: +1 blue die on every roll next month.', effect: { blueNext: 1, flag: 'grievance' } },
       { id: 'out', label: 'Take it out on someone', text: 'Your next Test card is a Fight, automatically.', effect: { flag: 'next_test_fight' } }
     ] }),
   yard({ id: 'kitchen_job', tag: 'life', title: 'Kitchen Job',
     text: "You're offered a job in the kitchen. Food, and access.",
     choices: [
-      { id: 'take', label: 'Take it', text: '+1 store a month; your car will ask for things (shuffle The Run in).', effect: { job: true, echoes: ['the_run'] } },
+      { id: 'take', label: 'Take it', text: '+1 store a month; your car will ask for things (shuffle The Run in). Lose the job if you go to seg.', effect: { job: true, echoes: ['the_run'] } },
       { id: 'no', label: 'Turn it down', text: 'No change.', effect: {} },
-      { id: 'refuse', label: 'Take it and refuse every ask', text: '-1 Standing for this act.', effect: { job: true, standing: -1 } }
+      { id: 'refuse', label: 'Take it and refuse every ask', text: '+1 store a month. -1 Standing: your car notices you won\'t carry for them.', effect: { job: true, standing: -1 } }
     ] }),
   yard({ id: 'sick_call', tag: 'life', title: 'Sick Call',
     text: "You've been sick for a week. Medical has a waitlist and a copay.",
@@ -309,9 +309,9 @@ const LIFE: Card[] = [
   yard({ id: 'records_error', tag: 'life', title: 'Records Error',
     text: 'Your release date in the system is wrong, by a month, in the state\'s favor.',
     choices: [
-      { id: 'grievance', label: 'File a grievance', text: "Roll a d6; on 4+ it's fixed next month. Otherwise it stays wrong. The officer named rolls +1 blue against you next month.",
+      { id: 'grievance', label: 'File a grievance', text: "Roll a d6; on 4+ it's fixed next month. Otherwise it stays wrong. Staff remember who files: +1 blue die on every roll next month.",
         effect: { blueNext: 1, flag: 'grievance' }, check: { target: 4, pass: { log: 'The record is corrected.' }, fail: { sentence: 1 } } },
-      { id: 'kite', label: 'Get a kite to records through a decent officer', text: 'If Reyes is on shift, he fixes it. Anyone else, roll as a grievance.',
+      { id: 'kite', label: 'Get a kite to records through a decent officer', text: 'If Reyes is on shift this month, he fixes it. Anyone else lets it sit, and it stays wrong: +1 month.',
         cond: { officer: 'decent', then: { log: 'Reyes fixes it, quietly.' }, else: { sentence: 1, log: 'The kite goes nowhere. It stays wrong.' } } },
       { id: 'wait', label: 'Wait', text: 'It stays wrong: +1 month.', effect: { sentence: 1 } }
     ] }),
@@ -361,10 +361,10 @@ const SPECIAL: Card[] = [
       { id: 'check', label: 'Check in', text: 'Ask to be moved. Your Standing drops to 0 and you leave the yard for protective custody. Your game ends, and your letters are read in the epilogue.', effect: { standingSet: 0, pc: true } }
     ] }),
   yard({ id: 'store_collects', tag: 'life', echo: true, title: "The Store Man's Cousin",
-    text: "The store man's cousin is collecting what your cellie owes. He's looking at you.",
+    text: "The store man's cousin is collecting a debt that came out of your cell. Whoever owed it, he's looking at you.",
     choices: [
       { id: 'pay', label: 'Pay it for him', needs: { commissary: 8 }, text: 'Pay 8 store. +1 Standing.', effect: { commissary: -8, standing: 1 } },
-      { id: 'send', label: 'Point him at your cellie', text: '-1 Standing. It is his problem now, and you both know whose it was.', effect: { standing: -1 } },
+      { id: 'send', label: 'Point him at the man who owes it', text: '-1 Standing. It is his problem now, and the tier saw you hand it over.', effect: { standing: -1 } },
       { id: 'car', label: 'Take it to your car', tag: 'takeToCar', text: 'No cost today. You owe them.', effect: { debt: 'your car' } }
     ] }),
   yard({ id: 'put_in_work', tag: 'politics', echo: true, title: 'The Ask',

@@ -56,7 +56,7 @@ describe('every screen renders', () => {
           } else break;
         }
         expect(s.phase).toBe('over');
-        expect(render(s)).toContain('The ledger');
+        expect(render(s)).toContain('What moved your number');
       }
     }
     for (const p of ['card', 'result', 'hub', 'eyes', 'mail', 'release']) expect(seen.has(p)).toBe(true);

@@ -39,7 +39,7 @@ describe('demo mode', () => {
   });
 
   it('keeps the player\'s decisions apart from the ones made for them', () => {
-    const g = played(11, 3);
+    const g = played(12, 6);
     const mine = g.decisions.length;
     expect(mine).toBeGreaterThan(2); // the draft, the court, and at least one card
     expect(g.decisions[0].what).toBe('Draft');
@@ -56,7 +56,7 @@ describe('demo mode', () => {
     const html = render(end);
     expect(html).toContain('Your decisions');
     expect(html).toContain('Talking points');
-    expect(html.indexOf('Your decisions')).toBeLessThan(html.indexOf('The sentencing ledger'));
+    expect(html.indexOf('Your decisions')).toBeLessThan(html.indexOf('What moved your number'));
     for (const t of ['<b>Institutionalization', '<b>Compromise', '<b>Disparity']) expect(html).toContain(t);
     // a whole game played normally has no demo panel
     const normal = endDemo(newGame('harlan', 5));

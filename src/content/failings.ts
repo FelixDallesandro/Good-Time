@@ -7,7 +7,11 @@ export const OFFICERS: Officer[] = [
   { name: 'Dahl', mood: 'exhausted', blurb: "New. Hasn't learned yet which rules nobody follows." },
   { name: 'Moss', mood: 'exhausted', blurb: 'On overtime. Sixteen hours in, and not looking.' },
   { name: 'Brandt', mood: 'cruel', blurb: 'Holds grudges. Remembers names and files them in order.' },
-  { name: 'Haskins', mood: 'exhausted', blurb: 'Sergeant. Comes down the tier when something needs signing. Wants a quiet unit, and will trade a lot for one.' }
+  { name: 'Haskins', mood: 'exhausted', blurb: 'Sergeant. Comes down the tier when something needs signing. Wants a quiet unit, and will trade a lot for one.' },
+  { name: 'Kim', mood: 'decent', blurb: "Explains a rule before she writes it. Some of the tier takes that for soft. It isn't." },
+  { name: 'Ostrander', mood: 'cruel', blurb: 'Reads the infraction log before every shift, like a box score.' },
+  { name: 'Tafoya', mood: 'exhausted', blurb: 'Twenty years on the unit, training his replacement. Tired of both of them.' },
+  { name: 'Pike', mood: 'cruel', blurb: 'Carries the sanction sheet in his breast pocket and checks faces against it.' }
 ];
 
 export const FAILINGS: Failing[] = [

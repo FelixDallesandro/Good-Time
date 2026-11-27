@@ -50,13 +50,13 @@ const echoesOf = (x: unknown, out: string[] = []): string[] => {
 describe('the card decks PDF', () => {
   it('has the deck sizes the decks list', () => {
     expect(CHARGES).toHaveLength(12);
-    expect(BACKGROUNDS).toHaveLength(12);
+    expect(BACKGROUNDS).toHaveLength(20);
     expect(OUTSIDES).toHaveLength(12);
     expect(CODE_MOVES).toHaveLength(12);
     expect(ANYONE_MOVES).toHaveLength(4);
     expect(CELLIES).toHaveLength(12);
     expect(CELLIES.filter((c) => c.has)).toHaveLength(9); // "nine of twelve have something going"
-    expect(COUNT.size).toBe(24);
+    expect(COUNT.size).toBe(28);
     expect(YARD_DECK_SIZE).toBe(40);
   });
   it('gives every case three lines', () => {
@@ -252,6 +252,7 @@ describe('Support, visits and mail', () => {
     s.mo.noMessages = false;
     s.mo.delayMessages = false;
     s.commsUntil = 0;
+    s.countDeck = ['holiday_meal', 'random_search']; // next month is quiet: no outage, no backlog
     return s;
   };
   /** Send, then play straight through to next month's messages. */
@@ -284,7 +285,7 @@ describe('Support, visits and mail', () => {
     expect(reply?.subject).toBe('Re: My release date');
   });
   it('puts a message with a listed word in review: the reply comes late, and says so', () => {
-    let s = mailAt(33);
+    let s = mailAt(35);
     s = submitLetters(s, [{ to: 'mother', topic: 'checkin', text: 'Can you send it by cashapp?' }]);
     expect(s.letters[0].lines[0].status).toBe('delayed');
     expect(s.letters[0].lines[0].flagged).toContain('cashapp');
@@ -483,6 +484,7 @@ describe('discipline (WAC 137-28, DOC 460.000, DOC 460.050)', () => {
     s.job = true;
     const cellie = s.cellieId;
     s.segUntil = s.m;
+    s.segPlacements.push({ m: s.m - 1, why: 'a fight', discretionary: false });
     s = eyes(s, []);
     while (s.hearings.length) s = plead(s, 'guilty');
     s = submitLetters(chooseVisit(toMail(s), 'money'), ['x']);
@@ -579,7 +581,10 @@ describe('grooves', () => {
   });
   it('locks in at 6 picks and stays locked until its count falls to 3', () => {
     let s = hub(22);
-    for (let i = 0; i < 6; i++) s = continueResult(pick(s, 'fight'));
+    for (let i = 0; i < 6; i++) {
+      s.hurt = false; // a fight can leave you hurt, which would lock the next one
+      s = continueResult(pick(s, 'fight'));
+    }
     expect(s.groove.locked).toBe('force');
     s.groove.force = 4; // below tier 2 but above the break point: it stays locked
     s.hurt = false; // six fights can leave you hurt, which locks a seventh

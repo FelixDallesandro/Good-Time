@@ -3,9 +3,9 @@ import {
   background, charge, facility, failing, outside
 } from '../engine/content';
 import {
-  STATS, actOf, activeTies, advanceRelease, caseFacts, chooseCourt, classify, listingActive, postProfile, clock, refuseOffer, appeal, appealRejection, applyEfv, displayName, releaseCard, routineLevel, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
+  STATS, actOf, activeTies, advanceRelease, caseFacts, chooseCourt, classify, listingActive, postProfile, clock, refuseOffer, withdrawChance, appeal, appealRejection, applyEfv, displayName, releaseCard, routineLevel, availableMoves, beginSentence, cardChoices, cellieOf, choose, chooseVisit, confess, consp,
   conspFacts, continueResult, custodyScore, cutLeverage, denyRumor, draftPick, efvBlock, grooveCost, grooveLabel, ledgerRows, leanOn, letterSlots, lockReason,
-  newGame, onSheet, payDebt, plead, playMove, playScene, preview, primaryTie, releaseMonth, rollEyes, sentencingRows, standIn, stayIn,
+  newGame, onSheet, payDebt, plead, playMove, playScene, preview, primaryTie, releaseMonth, rollEyes, sentencingFactors, sentencingRows, standIn, stayIn,
   stopCounting, submitLetters, tieActive, toMail, visitingTies, MESSAGE_LIMIT
 } from '../engine/engine';
 import { TOPICS, correspondents, topicsFor } from '../engine/replies';
@@ -15,8 +15,11 @@ import { SOURCES, WA_ALL, WA_BY_CUSTODY, WA_PRIOR, estimate, rateFor } from '../
 import { CASES, FACTS, ROMAN, fmtMonths, fmtRange, sentenceFor } from '../content/sentencing';
 import { CONDITIONS, GRE, communityCustody } from '../content/reentry';
 import { POLICY, RESEARCH } from '../content/research';
+import { HintBox, StepTracker, hintsOn, setHintsOn } from './Guide';
+import { passOpenings, pendingOpenings, takeOpening } from '../engine/openings';
+import { GLOSSARY, type Gloss, type GlossKind } from '../content/glossary';
 import { CONTACTS, CONTACTS_HOMELESS, GED_MONTHS, NEED_DOMAINS, PEN_PAL, REASSESS_MONTHS, WA_ONE_APPEAL_DAYS } from '../content/classification';
-import type { Choice, Game, OutMsg, ShownRoll } from '../engine/types';
+import type { Choice, DiceMod, Game, OutMsg, ShownRoll } from '../engine/types';
 
 const SAVE = 'goodtime.save.v3';
 const SEEN = 'goodtime.notice.v1';
@@ -56,7 +59,7 @@ const seenNotice = () => {
   }
 };
 
-type Screen = 'title' | 'notice' | 'rules' | 'game';
+type Screen = 'title' | 'notice' | 'rules' | 'glossary' | 'game';
 const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
 const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
@@ -65,6 +68,12 @@ export function App() {
   const [game, setGame] = useState<Game | null>(null);
   const [prev, setPrev] = useState<Game | null>(null);
   const [cards, setCards] = useState(false);
+  const [words, setWords] = useState(false);
+  const [hints, setHints] = useState(hintsOn);
+  const toggleHints = () => {
+    setHintsOn(!hints);
+    setHints(!hints);
+  };
   const [demo, setDemo] = useState(demoSetting);
   const toggleDemo = () => {
     const on = !demo;
@@ -116,6 +125,9 @@ export function App() {
             setScreen('game');
           }}
           onRules={() => setScreen('rules')}
+          onWords={() => setScreen('glossary')}
+          hints={hints}
+          onHints={toggleHints}
           demo={demo}
           onDemo={toggleDemo}
         />
@@ -134,17 +146,31 @@ export function App() {
         />
       )}
       {screen === 'rules' && <Rules onBack={() => setScreen('title')} />}
+      {screen === 'glossary' && (
+        <>
+          <BackBar label="Back" onBack={() => setScreen('title')} />
+          <Glossary />
+        </>
+      )}
       {screen === 'game' && game && (
         <>
           {demo && game.phase !== 'over' && <DemoBar onEnd={() => act((g) => endDemo(g))} />}
-          <GameView g={game} act={act} countTime={countTime} canRewind={!!prev} onQuit={quit} onCards={() => setCards(true)} onAgain={start} />
+          <GameView g={game} act={act} countTime={countTime} canRewind={!!prev} onQuit={quit} onCards={() => setCards(true)} onWords={() => setWords(true)} hints={hints} onAgain={start} />
         </>
+      )}
+      {words && (
+        <div className="modal" onClick={() => setWords(false)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <BackBar label="Back to the game" onBack={() => setWords(false)} />
+            <Glossary />
+          </div>
+        </div>
       )}
       {cards && game?.char && (
         <div className="modal" onClick={() => setCards(false)}>
           <div onClick={(e) => e.stopPropagation()}>
+            <BackBar label="Back to the game" onBack={() => setCards(false)} />
             <CharacterCards g={game} />
-            <button className="primary" onClick={() => setCards(false)}>Close</button>
           </div>
         </div>
       )}
@@ -154,7 +180,7 @@ export function App() {
 
 /* ---------------------------------------------------------------- */
 
-function Title(p: { canContinue: boolean; onNew: () => void; onContinue: () => void; onRules: () => void; demo: boolean; onDemo: () => void }) {
+function Title(p: { canContinue: boolean; onNew: () => void; onContinue: () => void; onRules: () => void; onWords: () => void; hints: boolean; onHints: () => void; demo: boolean; onDemo: () => void }) {
   return (
     <div className="splash">
       <div className="bars"><i /><i /><i /><i /><i /><i /><i /></div>
@@ -165,6 +191,10 @@ function Title(p: { canContinue: boolean; onNew: () => void; onContinue: () => v
       <button className="primary" onClick={p.onNew}>New sentence</button>
       {p.canContinue && <button onClick={p.onContinue}>Continue</button>}
       <button className="ghost" onClick={p.onRules}>How to play</button>
+      <button className="ghost" onClick={p.onWords}>Glossary</button>
+      <button className="ghost small" onClick={p.onHints} aria-pressed={p.hints}>
+        Hints while you play: {p.hints ? 'on' : 'off'}
+      </button>
       <button className="ghost small" onClick={p.onDemo} aria-pressed={p.demo}>
         Demo mode: {p.demo ? 'on' : 'off'}
       </button>
@@ -186,113 +216,140 @@ function Notice(p: { onOk: () => void; onBack: () => void }) {
   );
 }
 
+/** Always on screen, however far down you have read: the way back. */
+function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <div className="backbar">
+      <button className="primary small" onClick={onBack}>← {label}</button>
+    </div>
+  );
+}
+
 function Rules(p: { onBack: () => void }) {
   return (
+    <>
+    <BackBar label="Back" onBack={p.onBack} />
     <div className="panel">
       <h2>How to play</h2>
+      <p className="dim">You don't need to read this first. The game teaches as you go: hints appear the first time something comes up, a tracker shows where you are in each month, and the Glossary explains the words. Open any section below when you want the whole rule.</p>
       <p>Serve your sentence and walk out on your release date. The institution runs your calendar. The yard runs your standing. Almost every choice trades one for the other. Two rulebooks, both enforced, neither fair.</p>
 
-      <h3>Draft a life</h3>
-      <p>Name yourself, then keep one card from each of two hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your age, your priors (your offender score), and a case history you don't see until the end.</p>
-      <p>Everything else is dealt or rolled. Your <b>Outside</b> card, the people who still have you, is dealt: nobody chooses who waits for them. Then come four stats, your failings, and your schooling: a diploma, a GED, or neither, within what your background allows. Work that asks for a diploma or equivalent rolls one. Without either, you're placed in GED class, and you can't hold a job inside until you pass. Each stat runs from −2 to +2.</p>
-      <ul>
-        <li><b>Nerve</b> backs your threats.</li>
-        <li><b>Hustle</b> stretches a deal.</li>
-        <li><b>Cool</b> takes white dice off your rolls.</li>
-        <li><b>Heart</b> at +1 or more gives you an extra message each month.</li>
-      </ul>
-      <p>Your <b>public card</b> is what the yard knows. Your <b>private card</b> holds your real name, what actually happened, and a secret. If three rumors about that secret get pinned to you, the card turns face up and you lose 2 Standing.</p>
-
-      <h3>The court</h3>
-      <p>Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high so the deal would sound good. You have three choices:</p>
-      <ul>
-        <li><b>Take the deal:</b> a reduced charge at an agreed number.</li>
-        <li><b>Turn down the first offer:</b> the next one might be better, the same, or worse. Or the prosecutor pulls the offer, and you go to trial.</li>
-        <li><b>Go to trial:</b> the top of the range on everything charged.</li>
-      </ul>
-      <p>What happened at the arrest can add time: running from the police, a gun, a child in the car. Trial carries all of it. If there was a codefendant or a ring, you can tell what you know for the bottom of the range. It goes in the transcripts, and it can come out on the yard later.</p>
-
-      <h3>Reception</h3>
-      <p>Everyone goes to Washington Corrections Center first, held at Close custody until classified (DOC 310.150). Nobody picks their prison.</p>
-      <ul>
-        <li><b>Support.</b> The interview records who is still there. Months in county jail before trial cost more people than going home on bail.</li>
-        <li><b>The Initial Custody Designation</b> scores your crime's category, any history of violence, and whether you're under 29. That sets Close, Medium, or Minimum custody, and the facility comes with it. Close is the hardest place to walk out early.</li>
-        <li><b>Washington ONE</b> sets a risk level, from Lower to High Violent Property Drug, and rates eight needs. Education turns mostly on whether you finished high school or a GED. It doesn't touch custody. You're reassessed every six months: the needs can change, but the risk level stays frozen while DOC finishes norming the tool. If your conviction carries community custody (RCW 9.94A.701), the level sets how closely you're supervised after release. Property convictions mostly carry none.</li>
-      </ul>
-
-      <h3>The calendar</h3>
-      <p>Each turn on the calendar is a stretch of real time; the clock shows the months. Every sentence plays at least 12 turns, and long ones are compressed. Earned release can take up to a third off your sentence, but never the time on a weapon or child passenger enhancement. That third is your row of good-time boxes. Each turn without a serious infraction fills one, and you walk out at your sentence minus your filled boxes.</p>
-      <p>A serious infraction can take good time away for good, which lowers how many boxes you can ever fill. Once, you can choose to <b>stop counting days</b>. Every box is erased and you serve the full sentence, but you gain 2 Standing and write-ups can't cost you good time anymore.</p>
-      <p><b>Treatment.</b> Everyone is assessed, and every assessment finds a substance use disorder. Late in your sentence, group comes around. Get terminated from the program and you serve to your max date, good time or not.</p>
-
-      <h3>What you carry</h3>
-      <ul>
-        <li><b>Standing</b> (0 to 5) is how the yard sees you. Keeping the code raises it; breaking it lowers it. At 0 you are a target: the yard comes at you, and you get two scenes a month instead of one.</li>
-        <li><b>Support</b> (0 to 3) is the people outside who still have you. Each one is a real person.</li>
-        <li><b>Commissary</b> is what's on your books: food, trades, and debts.</li>
-        <li><b>Conspicuity</b> is how the facility looks at you, from your charge, your background, and whether staff have validated you. It adds officer dice to searches and to discretionary rules like disrespect, being out of bounds, or refusing a directive.</li>
-        <li><b>Custody</b> is your score and level: Close, Medium, or Minimum. More below.</li>
-      </ul>
-
-      <h3>A month</h3>
-      <ol>
-        <li><b>Count.</b> A count card names the officer on shift and their mood.</li>
-        <li><b>Whatever finds you.</b> Your Pull, group, legal mail, a rumor, a cellie.</li>
-        <li><b>Your scene.</b> Usually one; two at Standing 0. Lockdown or confinement to cell gives you one, in your cell. Seg gives you none.</li>
-        <li><b>The Eyes.</b> Staff roll for anything you did, and any serious infraction goes to a hearing.</li>
-        <li><b>Visiting and messages.</b></li>
-      </ol>
-      <p>Between scenes you can play your <b>moves</b>. Your Line Home and Code moves are spent when used; the Anyone moves come back.</p>
-
-      <h3>The Pull</h3>
-      <p>Your charge comes with a Pull, and some failings add another. A Pull is never a choice: when it comes up, you roll a d6. On 1 to 4 you give in. Each tally mark lowers that number by one, and priors raise it by one. Walk past and you make a tally. Three tallies and you tear it up for good.</p>
-
-      <h3>The Eyes</h3>
-      <p>When you break a rule, count the dice on you: blue for officers, white for prisoners, red for every rumor pinned to you. You see those before you act. You don't see the gray dice, the cameras, and Close custody always has one more of them.</p>
-      <p>At the end of the month, staff roll behind a screen and tell you only "clean" or "caught." Any 6 means you're caught. One 6 is usually written as a <b>general</b> infraction, two or more as a <b>serious</b> one, and some acts are always serious.</p>
-      <p>Some write-ups need no roll at all. A kite to the bubble can name what you did, and an officer can write you up because they decided to.</p>
-
-      <h3>Discipline</h3>
-      <p><b>General</b> infractions (WAC 137-28-220) cost privileges, extra duty, and confinement, never good time or visits. But four of them inside ninety days is a serious: 657. While you're on loss of privileges, going out to the yard is itself a serious, 658, and the yard doesn't always let you stay in.</p>
-      <p><b>Serious</b> infractions go to a hearing. Plead guilty and the sanction is usually lighter, but you give up the appeal. Contest it and you'll almost certainly lose; you can appeal to the Superintendent, and that almost never works either. Sanctions follow DOC 460.050: good time by category, loss of privileges, confinement, and mandatory sanctions like two years off the weight pile for a fight. Any serious also suspends extended family visits for six months.</p>
-      <p><b>Custody</b> follows a score (DOC 300.380). Every serious takes points off: 20 for a Category A, 15 for an assault, 10 for other Category B, 5 for C or D. Each turn without a serious adds a point back. Every six turns a Plan Change Review can move you one level at a time: below 40 is Close, 40 to 55 Medium, 56 and up Minimum. Lose 20 points in one review period and a review team looks at demoting you sooner. Sometimes the facility overrides the score either way.</p>
-      <p><b>Administrative segregation</b> (DOC 320.200) takes you off the unit for up to thirty days. A fight always brings it. A lieutenant can also place anyone the facility sees as a threat, pending an investigation nobody explains. Go to seg from the workers tier and you lose the job.</p>
-      <p><b>New charges.</b> An assault finding can be referred to the county prosecutor, though not always. With a weapon it's assault in the first degree. A new sentence starts the day this one ends.</p>
-
-      <h3>The yard</h3>
-      <p>Rumors, debts, and leverage go up on the tier board. You can:</p>
-      <ul>
-        <li><b>Deny a rumor</b> (−1 Standing).</li>
-        <li><b>Confess your secret</b> before it comes out (−1 Standing instead of −2).</li>
-        <li><b>Pay a debt</b> for 6 commissary.</li>
-        <li><b>Cut a leverage string</b> for 5 commissary, and they'll remember it.</li>
-      </ul>
-      <p>With Support, you can stay in your cell instead of playing a scene; do it twice in an act and the yard notices. With no Support you have nothing to lose. Once an act you can lean on someone who does, or take a charge for him.</p>
-      <p>If you told what you know, your paperwork can come out. Cellies ask for your J&amp;S on every move, and it lists only your charges. Sometimes that's enough. Protective custody is always a way off the yard, and it ends the game.</p>
-
-      <h3>Who you become</h3>
-      <p>The way you meet trouble sticks. Fight, tell, go to your car, or back down: repeat one and the yard learns it, and going against it costs Standing. Keep repeating it and the other ways close for good. A slow stretch without it can wear a habit down. A locked one almost never lets go.</p>
-      <p><b>Routine.</b> Every month makes the place more ordinary. Lockdown, confinement, seg, and loss of privileges speed it up. A visit or a real message slows it, but nothing stops it. As it grows, your name gives way to your DOC number, some months are nothing but count, and some things you used to do stop occurring to you.</p>
-
-      <h3>Outside</h3>
-      <p>Each person on your Outside card is real. Some can visit, some can only write, and a child can only come with the adult who brings them. A new visitor waits about two months on the visitor application. When someone leaves, their visits and their messages stop.</p>
-      <p>When a visit comes, you choose what it's for: money on your books, or steadying yourself, which takes one rumor off you. They strip you out after every visit, so fresh ink or marks from a fight can become a write-up.</p>
-      <p><b>Pen pals.</b> You can pay for a listing on a pen pal site from your books. While it's up, a stranger sometimes writes. A pen pal is messages only, and can drift away like anyone else.</p>
-      <p>An extended family visit is a separate program for immediate family. You need six visits in the last twelve months before you can apply, and the decision takes two to six months.</p>
-      <p><b>Messages.</b> On the tablet you pick who to write and a subject, and write what you want. Send nothing but a subject and they notice. Replies come the next month. Staff read everything, both ways. Some words hold a message in review, and nobody tells you which. A message can be rejected: you can appeal one that was sent to you, but not one you sent. With no one left, you write in a notebook no one reads.</p>
-
-      <h3>The end</h3>
-      <p>Release day, the gate, the first night, the first week. Then the epilogue opens everything that was face down:</p>
-      <ul>
-        <li>your case history, next to every other background's on your charge</li>
-        <li>the ledger of every roll</li>
-        <li>your messages, read next to your public card</li>
-        <li>what the numbers say about coming back</li>
-      </ul>
-      <p className="dim"><b>Demo mode</b>, on the title screen, is for presentations: end any sentence early, and the epilogue shows your decisions apart from the ones the game made after.</p>
-      <p className="dim"><b>Count Time</b>, in the corner, rewinds your last decision. Use it freely. Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
-      <button className="primary" onClick={p.onBack}>Back</button>
+      <details>
+        <summary>Draft a life</summary>
+        <p>Name yourself, then keep one card from each of two hands. Your <b>charge</b> sets your crime and your Pull. Your <b>background</b> sets your age, your priors (your offender score), and a case history you don't see until the end.</p>
+        <p>Everything else is dealt or rolled. Your <b>Outside</b> card, the people who still have you, is dealt: nobody chooses who waits for them. Then come four stats, your failings, and your schooling: a diploma, a GED, or neither, within what your background allows. Work that asks for a diploma or equivalent rolls one. Without either, you're placed in GED class, and you can't hold a job inside until you pass. Each stat runs from −2 to +2.</p>
+        <ul>
+          <li><b>Nerve</b> backs your threats.</li>
+          <li><b>Hustle</b> stretches a deal.</li>
+          <li><b>Cool</b> takes white dice off your rolls.</li>
+          <li><b>Heart</b> at +1 or more gives you an extra message each month.</li>
+        </ul>
+        <p>Your <b>public card</b> is what the yard knows. Your <b>private card</b> holds your real name, what actually happened, and a secret. If three rumors about that secret get pinned to you, the card turns face up and you lose 2 Standing.</p>
+      </details>
+      <details>
+        <summary>The court</summary>
+        <p>Your sentence comes from Washington's sentencing grid: the seriousness of the charge against your offender score. The prosecutor charged high so the deal would sound good. You have three choices:</p>
+        <ul>
+          <li><b>Take the deal:</b> a reduced charge at an agreed number.</li>
+          <li><b>Turn down the offer:</b> the next one might be better, the same, or worse. You can keep turning them down, but each refusal makes it likelier the prosecutor pulls the offer and you go to trial.</li>
+          <li><b>Go to trial:</b> the top of the range on everything charged.</li>
+        </ul>
+        <p>What happened at the arrest can add time: running from the police, a gun, a child in the car. Trial carries all of it. If there was a codefendant or a ring, you can agree to testify for the bottom of the range, and even after a pulled offer, testifying buys a deal back. It goes in the transcripts, and it can come out on the yard later.</p>
+      </details>
+      <details>
+        <summary>Reception</summary>
+        <p>Everyone goes to Washington Corrections Center first, held at Close custody until classified (DOC 310.150). Nobody picks their prison.</p>
+        <ul>
+          <li><b>Support.</b> The interview records who is still there. Months in county jail before trial cost more people than going home on bail.</li>
+          <li><b>The Initial Custody Designation</b> scores your crime's category, any history of violence, and whether you're under 29. That sets Close, Medium, or Minimum custody, and the facility comes with it. Close is the hardest place to walk out early.</li>
+          <li><b>Washington ONE</b> sets a risk level, from Lower to High Violent Property Drug, and rates eight needs. Education turns mostly on whether you finished high school or a GED. It doesn't touch custody. You're reassessed every six months: the needs can change, but the risk level stays frozen while DOC finishes norming the tool. If your conviction carries community custody (RCW 9.94A.701), the level sets how closely you're supervised after release. Property convictions mostly carry none.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>The calendar</summary>
+        <p>Each turn on the calendar is a stretch of real time; the clock shows the months. Every sentence plays at least 12 turns, and long ones are compressed. Earned release can take up to a third off your sentence, but never the time on a weapon or child passenger enhancement. That third is your row of good-time boxes. Each turn without a serious infraction fills one, and you walk out at your sentence minus your filled boxes.</p>
+        <p>A serious infraction can take good time away for good, which lowers how many boxes you can ever fill. Once, you can choose to <b>stop counting days</b>. Every box is erased and you serve the full sentence, but you gain 2 Standing and write-ups can't cost you good time anymore.</p>
+        <p><b>Treatment.</b> Everyone is assessed, and every assessment finds a substance use disorder. Late in your sentence, group comes around. Get terminated from the program and you serve to your max date, good time or not.</p>
+      </details>
+      <details>
+        <summary>What you carry</summary>
+        <ul>
+          <li><b>Standing</b> (0 to 5) is how the yard sees you. Keeping the code raises it; breaking it lowers it. At 0 you are a target: the yard comes at you, and you get two scenes a month instead of one.</li>
+          <li><b>Support</b> (0 to 3) is the people outside who still have you. Each one is a real person.</li>
+          <li><b>Commissary</b> is what's on your books: food, trades, and debts.</li>
+          <li><b>Conspicuity</b> is how the facility looks at you, from your charge, your background, and whether staff have validated you. It adds officer dice to searches and to discretionary rules like disrespect, being out of bounds, or refusing a directive.</li>
+          <li><b>Custody</b> is your score and level: Close, Medium, or Minimum. More below.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>A month</summary>
+        <ol>
+          <li><b>Count.</b> A count card names the officer on shift and their mood.</li>
+          <li><b>Whatever finds you.</b> Your Pull, group, legal mail, a rumor, a cellie.</li>
+          <li><b>Your scene.</b> Usually one; two at Standing 0. Lockdown or confinement to cell gives you one, in your cell. Seg gives you none.</li>
+          <li><b>The Eyes.</b> Staff roll for anything you did, and any serious infraction goes to a hearing.</li>
+          <li><b>Visiting and messages.</b></li>
+        </ol>
+        <p><b>Openings.</b> Nothing outside a scene sits on a menu. When something in your sentence makes an extra action worth weighing, the game stops between scenes and asks whether you'd like to take it, with why now, what it costs, and what it gets you. Examples: two rumors about your secret are up and you could confess before the third, you have the store to pay a debt before it's called in, or an officer wrote you up on his own say-so and you could grieve it. Pass, and it won't ask again until things change.</p>
+        <p><b>Moments.</b> Your Line Home and Code moves find you when their situation comes: someone outside wrote, or your car needs something. So do a few of the Anyone moves, like an officer wanting a word after a write-up. Each one-time moment comes before your sentence ends.</p>
+      </details>
+      <details>
+        <summary>The Pull</summary>
+        <p>Your charge comes with a Pull, and some failings add another. A Pull is never a choice: when it comes up, you roll a d6. On 1 to 4 you give in. Each tally mark lowers that number by one, and priors raise it by one. Walk past and you make a tally. Three tallies and you tear it up for good.</p>
+      </details>
+      <details>
+        <summary>The Eyes</summary>
+        <p>When you break a rule, count the dice on you: blue for officers, white for prisoners, red for every rumor pinned to you. You see those before you act. You don't see the gray dice, the cameras, and Close custody always has one more of them.</p>
+        <p>At the end of the month, staff roll behind a screen and tell you only "clean" or "caught." Any 6 means you're caught. One 6 is usually written as a <b>general</b> infraction, two or more as a <b>serious</b> one, and some acts are always serious.</p>
+        <p>Some write-ups need no roll at all. A kite to the bubble can name what you did, and an officer can write you up because they decided to.</p>
+      </details>
+      <details>
+        <summary>Discipline</summary>
+        <p><b>General</b> infractions (WAC 137-28-220) cost privileges, extra duty, and confinement, never good time or visits. But four of them inside ninety days is a serious: 657. While you're on loss of privileges, going out to the yard is itself a serious, 658, and the yard doesn't always let you stay in.</p>
+        <p><b>Serious</b> infractions go to a hearing. Plead guilty and the sanction is usually lighter, but you give up the appeal. Contest it and you'll almost certainly lose; you can appeal to the Superintendent, and that almost never works either. Sanctions follow DOC 460.050: good time by category, loss of privileges, confinement, and mandatory sanctions like two years off the weight pile for a fight. Any serious also suspends extended family visits for six months.</p>
+        <p><b>Custody</b> follows a score (DOC 300.380). Every serious takes points off: 20 for a Category A, 15 for an assault, 10 for other Category B, 5 for C or D. Each turn without a serious adds a point back. Every six turns a Plan Change Review can move you one level at a time: below 40 is Close, 40 to 55 Medium, 56 and up Minimum. Lose 20 points in one review period and a review team looks at demoting you sooner. Sometimes the facility overrides the score either way.</p>
+        <p><b>Administrative segregation</b> (DOC 320.200) takes you off the unit for up to thirty days. A fight always brings it. A lieutenant can also place anyone the facility sees as a threat, pending an investigation nobody explains. Go to seg from the workers tier and you lose the job.</p>
+        <p><b>New charges.</b> An assault finding can be referred to the county prosecutor, though not always. With a weapon it's assault in the first degree. A new sentence starts the day this one ends.</p>
+      </details>
+      <details>
+        <summary>The yard</summary>
+        <p>Rumors, debts, and leverage go up on the tier board. You can:</p>
+        <ul>
+          <li><b>Deny a rumor</b> (−1 Standing).</li>
+          <li><b>Confess your secret</b> before it comes out (−1 Standing instead of −2).</li>
+          <li><b>Pay a debt</b> for 6 commissary.</li>
+          <li><b>Cut a leverage string</b> for 5 commissary, and they'll remember it.</li>
+        </ul>
+        <p>With Support, you can stay in your cell instead of playing a scene; do it twice in an act and the yard notices. With no Support you have nothing to lose. Once an act you can lean on someone who does, or take a charge for him.</p>
+        <p>If you told what you know, your paperwork can come out. Cellies ask for your J&amp;S on every move, and it lists only your charges. Sometimes that's enough. Protective custody is always a way off the yard, and it ends the game.</p>
+      </details>
+      <details>
+        <summary>Who you become</summary>
+        <p>The way you meet trouble sticks. Fight, tell, go to your car, or back down: repeat one and the yard learns it, and going against it costs Standing. Keep repeating it and the other ways close for good. A slow stretch without it can wear a habit down. A locked one almost never lets go.</p>
+        <p><b>Routine.</b> Every month makes the place more ordinary. Lockdown, confinement, seg, and loss of privileges speed it up. A visit or a real message slows it, but nothing stops it. As it grows, your name gives way to your DOC number, some months are nothing but count, and some things you used to do stop occurring to you.</p>
+      </details>
+      <details>
+        <summary>Outside</summary>
+        <p>Each person on your Outside card is real. Some can visit, some can only write, and a child can only come with the adult who brings them. A new visitor waits about two months on the visitor application. When someone leaves, their visits and their messages stop.</p>
+        <p>When a visit comes, you choose what it's for: money on your books, or steadying yourself, which takes one rumor off you. They strip you out after every visit, so fresh ink or marks from a fight can become a write-up.</p>
+        <p><b>Pen pals.</b> You can pay for a listing on a pen pal site from your books. While it's up, a stranger sometimes writes. A pen pal is messages only, and can drift away like anyone else.</p>
+        <p>An extended family visit is a separate program for immediate family. You need six visits in the last twelve months before you can apply, and the decision takes two to six months.</p>
+        <p><b>Messages.</b> On the tablet you pick who to write and a subject, and write what you want. Send nothing but a subject and they notice. Replies come the next month. Staff read everything, both ways. Some words hold a message in review, and nobody tells you which. A message can be rejected: you can appeal one that was sent to you, but not one you sent. With no one left, you write in a notebook no one reads.</p>
+      </details>
+      <details>
+        <summary>The end</summary>
+        <p>Release day, the gate, the first night, the first week. Then the epilogue opens everything that was face down:</p>
+        <ul>
+          <li>what moved your sentence: your lawyer, where you waited, your priors, and how often each lands by race</li>
+          <li>the ledger of every roll</li>
+          <li>your messages, read next to your public card</li>
+          <li>what the numbers say about coming back</li>
+        </ul>
+        <p className="dim"><b>Demo mode</b>, on the title screen, is for presentations: end any sentence early, and the epilogue shows your decisions apart from the ones the game made after.</p>
+        <p className="dim"><b>Count Time</b>, in the corner, rewinds your last decision. Use it freely. Every option costs something with staff, with the yard, or with both. There's no right answer. Everyone gets released. The question is what kind of person the sentence made you.</p>
+      </details>
     </div>
+    </>
   );
 }
 
@@ -316,12 +373,35 @@ function DemoBar({ onEnd }: { onEnd: () => void }) {
 
 /* ---------------------------------------------------------------- */
 
-function Dice({ n, c }: { n: number; c: 'blue' | 'white' | 'gray' | 'rumor' }) {
-  if (!n) return null;
+function Dice({ n, c, added = 0, struck = 0 }: { n: number; c: 'blue' | 'white' | 'gray' | 'rumor'; added?: number; struck?: number }) {
+  if (!n && !struck) return null;
+  const plain = Math.max(0, n - added);
   return (
-    <span>
-      {Array.from({ length: Math.min(n, 8) }, (_, i) => <i key={i} className={`die ${c}`} />)}
-      {n > 8 ? `×${n}` : ''}
+    <span className="dicegroup">
+      {Array.from({ length: Math.min(plain, 8) }, (_, i) => <i key={i} className={`die ${c}`} />)}
+      {plain > 8 ? `×${plain}` : ''}
+      {Array.from({ length: Math.min(added, n, 6) }, (_, i) => <i key={`a${i}`} className={`die ${c} added`} title="Added this roll" />)}
+      {Array.from({ length: Math.min(struck, 6) }, (_, i) => <i key={`s${i}`} className={`die ${c} struck`} title="Taken off this roll" />)}
+    </span>
+  );
+}
+
+/** How many dice of one color were added, and how many taken off, so the screen can draw both. */
+function diceShift(base: number, final: number, mods: DiceMod[], color: 'blue' | 'white') {
+  const plus = mods.filter((m) => m.color === color && m.n > 0).reduce((a, m) => a + m.n, 0);
+  return { added: Math.min(plus, final), struck: Math.max(0, base + plus - final) };
+}
+
+/** Every change to the dice, and where it comes from: "+1 Dahl's first week", "-1 Cool". */
+function DiceWhyLine({ mods }: { mods: DiceMod[] }) {
+  if (!mods.length) return null;
+  return (
+    <span className="dicewhy">
+      {mods.map((m, i) => (
+        <span key={i} className={`chip ${m.color} ${m.n > 0 ? 'up' : 'down'}`}>
+          {m.n > 0 ? `+${m.n}` : m.n} {m.color}: {m.label}
+        </span>
+      ))}
     </span>
   );
 }
@@ -332,14 +412,17 @@ function PreviewLine({ g, ch }: { g: Game; ch: Choice }) {
   if (p.kind === 'auto') return <div className="pv"><span className="caught">No roll: you're caught. A major.</span></div>;
   if (p.kind === 'roll') {
     const d = p.dice;
+    const b = diceShift(d.baseBlue, d.blue, d.mods, 'blue');
+    const w = diceShift(d.baseWhite, d.white, d.mods, 'white');
     // You count the eyes you can see before you act. Cameras and kites are the risk you can't count.
     return (
       <div className="pv">
-        <Dice n={d.blue} c="blue" /><Dice n={d.white} c="white" /><Dice n={d.rumor} c="rumor" />
+        <Dice n={d.blue} c="blue" {...b} /><Dice n={d.white} c="white" {...w} /><Dice n={d.rumor} c="rumor" />
         <span>
           {d.visible} {d.visible === 1 ? 'die' : 'dice'} · <span className="pct">{Math.round(d.visiblePct * 100)}% caught</span>
           {d.gray > 0 && <span className="dim"> · and cameras you can't count</span>}
         </span>
+        <DiceWhyLine mods={d.mods} />
       </div>
     );
   }
@@ -348,7 +431,7 @@ function PreviewLine({ g, ch }: { g: Game; ch: Choice }) {
   return <div className="pv"><span>Roll · <span className="pct">{Math.round(p.pct * 100)}% it works</span></span></div>;
 }
 
-function Hud(p: { g: Game; canRewind: boolean; countTime: () => void; onQuit: () => void; onCards: () => void }) {
+function Hud(p: { g: Game; canRewind: boolean; countTime: () => void; onQuit: () => void; onCards: () => void; onWords?: () => void }) {
   const { g } = p;
   const release = releaseMonth(g);
   const months = Array.from({ length: g.sentence }, (_, i) => i + 1);
@@ -360,6 +443,7 @@ function Hud(p: { g: Game; canRewind: boolean; countTime: () => void; onQuit: ()
         </div>
         <div className="row" style={{ gap: 6 }}>
           <button className="small" onClick={p.onCards}>Cards</button>
+          {p.onWords && <button className="small" onClick={p.onWords} title="What the words mean">Glossary</button>}
           <button className="small" disabled={!p.canRewind} onClick={p.countTime} title="Rewind your last decision">Count Time</button>
           <button className="small ghost" onClick={p.onQuit}>Menu</button>
         </div>
@@ -386,6 +470,121 @@ function Hud(p: { g: Game; canRewind: boolean; countTime: () => void; onQuit: ()
         {g.efv.status === 'approved' && <span className="tag">EFV approved</span>}
         {g.efv.status === 'suspended' && <span className="tag">EFV suspended</span>}
       </div>
+      <MonthDice g={g} />
+    </div>
+  );
+}
+
+const WHY_SCOPE = { blue: 'every roll', disc: 'discretionary rules', testWhite: 'Test cards', none: '' } as const;
+
+/** What changes the dice for the whole month, shown while it lasts. */
+function MonthDice({ g }: { g: Game }) {
+  const why = (g.mo.why ?? []).filter((w) => w.n || w.kind === 'none');
+  const o = g.mo.officer;
+  const mood = o && o.mood !== 'exhausted' ? { label: `${o.name} is ${o.mood}`, n: o.mood === 'cruel' ? 1 : -1, kind: 'disc' as const } : null;
+  if (mood && !g.mo.seg) why.unshift(mood);
+  if (!why.length) return null;
+  return (
+    <div className="monthdice" aria-label="Dice this month">
+      <span className="small dim">Dice this month:</span>
+      {why.map((w, i) => {
+        const color = w.kind === 'testWhite' ? 'white' : 'blue';
+        return (
+          <span key={i} className={`chip ${color} ${w.kind === 'none' || w.n < 0 ? 'down' : 'up'}`}>
+            {w.kind === 'none'
+              ? <>No blue dice at all · {w.label}</>
+              : <><i className={`die ${color} ${w.n > 0 ? 'added' : 'struck'}`} /> {w.n > 0 ? `+${w.n}` : w.n} {color} on {WHY_SCOPE[w.kind]} · {w.label}</>}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+const GLOSS_HEAD: Record<GlossKind, string> = {
+  yard: 'Inside talk',
+  doc: 'The institution and the law',
+  game: "The game's own words"
+};
+
+/** What the words mean: how people inside talk, what the institution calls things, and what the game made up. */
+export function Glossary() {
+  const [q, setQ] = useState('');
+  const want = q.trim().toLowerCase();
+  const hit = (e: Gloss) => !want || [e.term, ...(e.also ?? []), e.text].some((t) => t.toLowerCase().includes(want));
+  return (
+    <div className="panel glossary">
+      <h2>Glossary</h2>
+      <input type="search" placeholder="Find a word: car, kite, seg, custody…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Find a word" />
+      {(Object.keys(GLOSS_HEAD) as GlossKind[]).map((k) => {
+        const rows = GLOSSARY.filter((e) => e.kind === k && hit(e)).sort((a, b) => a.term.localeCompare(b.term));
+        if (!rows.length) return null;
+        return (
+          <section key={k}>
+            <h3>{GLOSS_HEAD[k]}</h3>
+            {k === 'game' && <p className="small dim">These are the game's mechanics, not real procedure.</p>}
+            <dl>
+              {rows.map((e) => (
+                <div key={e.term} className="gloss">
+                  <dt>{e.term}{e.also?.length ? <span className="dim small"> · {e.also.slice(0, 3).join(', ')}</span> : null}</dt>
+                  <dd>{e.text}{e.source && <span className="dim small"> ({e.source})</span>}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        );
+      })}
+      {!GLOSSARY.some(hit) && <p className="dim">No word matches “{q}”.</p>}
+    </div>
+  );
+}
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+/**
+ * What moved your number. The same grid for everyone; the deal moves with three facts of the case, and each of those
+ * facts follows money or policing more than anything the person did. No list of every background: the factors are the
+ * point, and the player's own case is the example.
+ */
+function SentencingFactors({ g }: { g: Game }) {
+  const ch = g.char!;
+  const f = sentencingFactors(ch.chargeId, ch.backgroundId);
+  return (
+    <div className="panel">
+      <h3>What moved your number</h3>
+      <p>
+        The sentencing grid is the same for everyone: the charge's seriousness against the offender score. On your charge, your deal was{' '}
+        <b>{f.yours} months</b>. Change one fact of your case at a time, and the same deal on the same charge comes out like this:
+      </p>
+      <table>
+        <thead><tr><th>Factor</th><th>Your case</th><th>If it had gone the other way</th></tr></thead>
+        <tbody>
+          {f.factors.map((x) => (
+            <tr key={x.id}>
+              <td>{x.label}</td>
+              <td className="small">{x.bad ? '✖' : '✓'} {x.yours}</td>
+              <td>{x.bad ? <>{x.ifNot} months <span className="dim small">({sign(x.ifNot - f.yours)})</span></> : <span className="dim small">already in your favor</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="small">Paid counsel, home until trial, and no priors: <b>{f.best} months</b> on the same deal.</p>
+      <ul className="small">
+        {f.factors.map((x) => <li key={x.id}><b>{x.label}.</b> {x.why}</li>)}
+      </ul>
+      <p>None of these three facts is about what anyone did on the day of the arrest. Across the game's {f.white.n + f.others.n} backgrounds, here is how often each one lands:</p>
+      <table>
+        <thead><tr><th></th><th>White backgrounds</th><th>Everyone else</th></tr></thead>
+        <tbody>
+          <tr><td>Public defender</td><td>{pct(f.white.defender)}</td><td>{pct(f.others.defender)}</td></tr>
+          <tr><td>Held before trial</td><td>{pct(f.white.held)}</td><td>{pct(f.others.held)}</td></tr>
+          <tr><td>Prior convictions</td><td>{pct(f.white.priors)}</td><td>{pct(f.others.priors)}</td></tr>
+          <tr><td>Average deal on your charge</td><td>{f.white.months.toFixed(1)} months</td><td>{f.others.months.toFixed(1)} months</td></tr>
+        </tbody>
+      </table>
+      <p className="small dim">
+        No single case makes the point; the pattern does. Inside, the same thing happens again through officer discretion: the Eyes ledger below shows it.
+      </p>
     </div>
   );
 }
@@ -407,7 +606,7 @@ function TierBoard({ g }: { g: Game }) {
 
 type Act = (fn: (g: Game) => Game) => void;
 
-export function GameView(p: { g: Game; act: Act; countTime: () => void; canRewind: boolean; onQuit: () => void; onCards: () => void; onAgain: () => void }) {
+export function GameView(p: { g: Game; act: Act; countTime: () => void; canRewind: boolean; onQuit: () => void; onCards: () => void; onWords?: () => void; hints?: boolean; onAgain: () => void }) {
   const { g, act } = p;
   if (g.phase === 'draft') return <Draft g={g} act={act} onQuit={p.onQuit} />;
   if (g.phase === 'sheet')
@@ -418,7 +617,7 @@ export function GameView(p: { g: Game; act: Act; countTime: () => void; canRewin
         <Court g={g} act={act} />
         <CharacterCards g={g} />
         <button className="primary" onClick={() => act(classify)}>
-          {g.court?.path === 'trial' ? 'Go to trial' : g.court?.talked ? 'Talk and take the deal' : 'Take the deal'}, and go to reception
+          {g.court?.path === 'trial' ? 'Go to trial' : g.court?.talked ? 'Testify and take the deal' : 'Take the deal'}, and go to reception
         </button>
       </>
     );
@@ -428,10 +627,12 @@ export function GameView(p: { g: Game; act: Act; countTime: () => void; canRewin
 
   return (
     <>
-      <Hud g={g} canRewind={p.canRewind} countTime={p.countTime} onQuit={p.onQuit} onCards={p.onCards} />
+      <Hud g={g} canRewind={p.canRewind} countTime={p.countTime} onQuit={p.onQuit} onCards={p.onCards} onWords={p.onWords} />
+      <StepTracker g={g} />
+      <HintBox g={g} on={p.hints ?? false} />
       {g.phase === 'card' && <CardView g={g} act={act} />}
       {g.phase === 'result' && g.result && <ResultView g={g} act={act} />}
-      {g.phase === 'hub' && <Hub g={g} act={act} />}
+      {g.phase === 'hub' && (pendingOpenings(g).length ? <Openings g={g} act={act} /> : <Hub g={g} act={act} />)}
       {g.phase === 'eyes' && <Eyes g={g} act={act} />}
       {g.phase === 'mail' && <Mail g={g} act={act} />}
     </>
@@ -496,7 +697,12 @@ function CardView({ g, act }: { g: Game; act: Act }) {
         <div className="officer">On shift: <b>{g.mo.officer.name}</b> ({g.mo.officer.mood}). {g.mo.officer.blurb}</div>
       )}
       <p className="card-text">{card.text}</p>
-      {cur.source === 'count' && g.mo.notes.length > 0 && <Lines lines={g.mo.notes} />}
+      {cur.source === 'count' && g.mo.notes.length > 0 && (
+        <div className="notes">
+          <div className="small dim">Since last month</div>
+          <Lines lines={g.mo.notes} />
+        </div>
+      )}
       {choices.map((ch) => {
         const why = lockReason(g, ch);
         return (
@@ -579,10 +785,7 @@ function ResultView({ g, act }: { g: Game; act: Act }) {
 }
 
 function Hub({ g, act }: { g: Game; act: Act }) {
-  const moves = availableMoves(g);
   const done = g.mo.scenesLeft <= 0;
-  const hasDebt = g.strings.some((s) => s.type === 'debt');
-  const hasLev = g.strings.some((s) => s.type === 'leverage');
   return (
     <>
       {g.lines.length > 0 && <div className="panel"><Lines lines={g.lines} /></div>}
@@ -602,45 +805,51 @@ function Hub({ g, act }: { g: Game; act: Act }) {
         {!done && <button className="primary" onClick={() => act(playScene)}>Play the next scene</button>}
         {done && <button className="primary" onClick={() => act(rollEyes)}>Roll the Eyes</button>}
       </div>
-      {moves.length > 0 && (
-        <div className="panel">
-          <h3>Your moves</h3>
-          <p className="dim small">Hooks, not a path. You never have to use them. Your Line Home and Code moves are spent when used; the four Anyone moves return. Your Pull is rolled for you.</p>
-          <div className="row">
-            {moves.map((m) => (
-              <button key={m.id} className="small" onClick={() => act((s) => playMove(s, m.id))}>
-                {m.kind === 'line' ? 'Line Home: ' : m.kind === 'code' ? 'Code: ' : ''}{m.title}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       <TierBoard g={g} />
       <Outside g={g} act={act} />
-      <div className="panel">
-        <h3>On the yard</h3>
-        <div className="row">
-          {g.rumors.length > 0 && <button className="small" disabled={g.standing < 1} onClick={() => act(denyRumor)}>Deny a rumor (−1 Standing)</button>}
-          {!g.privateFlipped && <button className="small" onClick={() => act(confess)}>Confess (turn your private card up, −1 Standing)</button>}
-          {hasDebt && <button className="small" disabled={g.commissary < 6} onClick={() => act(payDebt)}>Pay a debt (6 commissary)</button>}
-          {hasLev && <button className="small" onClick={() => act(cutLeverage)}>Cut the leverage string (+5 commissary)</button>}
-          {g.support >= 1 && !done && <button className="small" onClick={() => act(stayIn)}>Stay in (skip a scene; the yard notices the second time)</button>}
-          {!listingActive(g) && (
-            <button className="small" disabled={g.commissary < PEN_PAL.cost} onClick={() => act(postProfile)}>
-              Post a pen pal listing ({PEN_PAL.cost} commissary)
-            </button>
-          )}
-          {listingActive(g) && <span className="small dim">Your pen pal listing is up.</span>}
-          {g.support === 0 && <button className="small" onClick={() => act(leanOn)}>Lean on someone (once per act)</button>}
-          {g.support === 0 && <button className="small" onClick={() => act(standIn)}>Stand in for someone (once per act)</button>}
-        </div>
-        <StopCounting g={g} act={act} />
-      </div>
     </>
   );
 }
 
-function Outside({ g, act }: { g: Game; act: Act }) {
+/**
+ * "Would you like to take an additional action this turn?" Asked only when something in the sentence makes an action
+ * worth thinking about, apart from the scenes, with why now, what it costs, and what it gets you.
+ */
+function Openings({ g, act }: { g: Game; act: Act }) {
+  const ops = pendingOpenings(g);
+  const [sure, setSure] = useState<string | null>(null);
+  return (
+    <>
+      {g.lines.length > 0 && <div className="panel"><Lines lines={g.lines} /></div>}
+      <div className="panel">
+        <span className="tag">Between scenes</span>
+        <h2>Would you like to take an additional action this turn?</h2>
+        <p className="dim">
+          Something going on in your sentence opens a door. You don't have to go through it. If you pass, it won't ask again unless things change.
+        </p>
+        {ops.map((o) => (
+          <div key={o.id} className="opening">
+            <h3>{o.title}</h3>
+            <p><b>Why now.</b> {o.why}</p>
+            <p><b>What it costs.</b> {o.cost}</p>
+            <p><b>What you get.</b> {o.gain}</p>
+            {o.oneWay && sure !== o.id ? (
+              <button className="choice" onClick={() => setSure(o.id)}><b>{o.verb}</b><span className="dim small">This is a one-way door. You'll be asked once more.</span></button>
+            ) : (
+              <button className="choice" onClick={() => act((x) => takeOpening(x, o.id))}>
+                <b>{o.oneWay ? `Yes: ${o.verb.toLowerCase()}, for good` : o.verb}</b>
+              </button>
+            )}
+          </div>
+        ))}
+        <button className="primary" onClick={() => act(passOpenings)}>{ops.length > 1 ? 'None of these. Go on with the month' : 'Not now. Go on with the month'}</button>
+      </div>
+      <TierBoard g={g} />
+    </>
+  );
+}
+
+function Outside({ g }: { g: Game; act?: Act }) {
   const visiting = new Set(visitingTies(g).map((t) => t.id));
   const block = efvBlock(g);
   return (
@@ -654,30 +863,13 @@ function Outside({ g, act }: { g: Game; act: Act }) {
           : visiting.has(t.id) ? 'can visit' : !t.visits ? 'messages only' : 'waiting on visitor approval';
         return <div key={t.id} className={`small ${on ? '' : 'dim'}`}>{t.who[0].toUpperCase() + t.who.slice(1)}: {status}</div>;
       })}
-      <div style={{ marginTop: 8 }}>
-        <button className="small" disabled={!!block} onClick={() => act(applyEfv)}>Apply for an extended family visit</button>
-        {block && <div className="small dim">{block}</div>}
-      </div>
+      <div className="small dim" style={{ marginTop: 8 }}>Extended family visits: {block ?? 'you are eligible to apply.'}</div>
+      {listingActive(g) && <div className="small dim">Your pen pal listing is up.</div>}
     </div>
   );
 }
 
 
-function StopCounting({ g, act }: { g: Game; act: Act }) {
-  if (g.flags.stopped) return null;
-  return (
-    <div>
-      <button
-        className="small ghost"
-        onClick={() => {
-          if (window.confirm('Stop counting days? This is a one-way door. Every good-time box is erased and you will serve your full sentence. In exchange you gain 2 Standing, and write-ups cost you no good time from now on.')) act(stopCounting);
-        }}
-      >
-        Stop counting days (one-way door)
-      </button>
-    </div>
-  );
-}
 
 function Mail({ g, act }: { g: Game; act: Act }) {
   const slots = letterSlots(g);
@@ -795,7 +987,6 @@ function Mail({ g, act }: { g: Game; act: Act }) {
         >
           {g.visitPending ? 'Choose what to do with your visit first' : g.ending === 'released' ? (g.flags.newMonths || g.flags.newCaseAt ? 'Send it.' : 'Send it. Walk out.') : 'Send'}
         </button>
-        {g.ending !== 'released' && <StopCounting g={g} act={act} />}
       </div>
     </>
   );
@@ -1085,31 +1276,7 @@ function Epilogue({ g, onAgain, onQuit }: { g: Game; onAgain: () => void; onQuit
 
       {g.ending === 'released' && !g.flags.newMonths && <Odds g={g} />}
 
-      <div className="panel">
-        <h3>The sentencing ledger</h3>
-        <p>
-          The grid is the same for everyone. Here are all {sent.rows.length} backgrounds, each offered the same deal on your charge. Priors raise the offender
-          score, and priors follow policing. A public defender and a jail cell while the case is pending push the agreed number up the range. The pattern is
-          never announced during play. Yours is highlighted.
-        </p>
-        <table>
-          <thead><tr><th>Background</th><th>Case</th><th>Score</th><th>Deal</th></tr></thead>
-          <tbody>
-            {sent.rows.map((r) => (
-              <tr key={r.id} className={r.id === bg.id ? 'you' : ''}>
-                <td>{r.ethnicity}, {r.age}</td>
-                <td className="small">{r.case.map((c) => `${c.bad ? '✖' : '✓'} ${c.text}`).join(' ')}</td>
-                <td>{r.score}</td>
-                <td>{r.months}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="small dim">
-          The average deal across these cards is {sent.white.toFixed(1)} months for the white backgrounds and {sent.others.toFixed(1)} for everyone else.
-          No single card makes the point. The ledger does, when you line them up.
-        </p>
-      </div>
+      <SentencingFactors g={g} />
 
       <div className="panel">
         <h3>The Eyes ledger</h3>
@@ -1413,15 +1580,21 @@ function Court({ g, act }: { g: Game; act: Act }) {
       <span className="small dim">{note} Earned release: up to {sen.earnedMax} months off.</span>
     </button>
   );
+  const n = cur.refusals ?? 0;
+  const turned = n === 1 ? 'You turned down an offer.' : `You have turned down ${n} offers.`;
   const OFFER_NOTE = {
     first: '',
-    better: 'You turned down the first offer. The prosecutor came back lower: they did not want to try it either.',
-    same: "You turned down the first offer. It's the same offer, and they're not budging.",
-    worse: 'You turned down the first offer. The prosecutor took it personally. The new offer is worse.',
-    withdrawn: 'You turned down the first offer. The prosecutor pulled it. There is no offer now, and there will not be another: the case goes to trial.'
+    better: `${turned} The prosecutor came back lower than the first offer: they did not want to try it either.`,
+    same: `${turned} It's the same as the first offer, and they're not budging.`,
+    worse: `${turned} The prosecutor took it personally. This offer is worse than the first.`,
+    withdrawn: c.info
+      ? `${turned} The prosecutor pulled it. There is no offer now. Unless you give them something, the case goes to trial.`
+      : `${turned} The prosecutor pulled it. There is no offer now, and there will not be another: the case goes to trial.`
   } as const;
   const noDeal = offer === 'withdrawn';
-  const canTalk = !!c.info && talk.months < deal.months;
+  // after a pull, what you know is the only thing left to trade, and it always buys more than trial does
+  const canTalk = !!c.info && (noDeal || talk.months < deal.months);
+  const pull = withdrawChance(cur);
   return (
     <div className="panel">
       <h3>The court</h3>
@@ -1432,13 +1605,20 @@ function Court({ g, act }: { g: Game; act: Act }) {
       {facts.map((f) => <p key={f} className="small">{FACTS[f].text}</p>)}
       {offer !== 'first' && <p className="small">{OFFER_NOTE[offer]}</p>}
       {!noDeal && row('Take the deal', deal, cur.path === 'deal' && !cur.talked, (x) => chooseCourt(x, 'deal'), 'A reduced charge at an agreed number.')}
-      {!noDeal && canTalk && row(
-        'Take the deal and tell what you know', talk, cur.path === 'deal' && cur.talked, (x) => chooseCourt(x, 'deal', true),
-        `${c.infoText} Give them a name and the agreed number drops to the bottom of the range. It goes in the transcripts, and it can come out.`
+      {canTalk && row(
+        noDeal ? 'Testify, and get a deal back' : 'Take the deal and testify', talk, cur.path === 'deal' && cur.talked, (x) => chooseCourt(x, 'deal', true),
+        `${c.infoText} Agree to testify and give them a name, and the agreed number drops to the bottom of the range. It goes in the transcripts, and it can come out on the yard.`
       )}
       {!noDeal && c.info && !canTalk && <p className="small dim">{c.infoText} Your lawyer already got you the bottom of the range. Telling would buy you nothing.</p>}
       {row('Go to trial', trial, cur.path === 'trial', (x) => chooseCourt(x, 'trial'), 'Everything charged, and the judge gives the top of the range for making the court do its job.')}
-      {offer === 'first' && <button className="ghost" onClick={() => act(refuseOffer)}>Turn down the first offer and wait for another</button>}
+      {!noDeal && (
+        <button className="ghost" onClick={() => act(refuseOffer)}>
+          Turn down this offer and wait for another
+          <span className="small dim" style={{ display: 'block' }}>
+            {n ? 'Every offer you turn down wears on the prosecutor. ' : ''}Chance they pull the deal this time: {Math.round(pull * 100)}% (a game number).
+          </span>
+        </button>
+      )}
       {(deal.sheet.strike || trial.sheet.strike) && (
         <p className="small dim">
           A strike is a "most serious offense" (RCW 9.94A.030). Three of them is life without the possibility of release.

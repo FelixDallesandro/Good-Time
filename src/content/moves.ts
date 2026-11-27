@@ -86,7 +86,7 @@ export const ANYONE_MOVES: Card[] = [
     ] }),
   move({ id: 'any_grievance', title: 'When you file a grievance', text: 'There is a form. There is always a form.',
     choices: [
-      { id: 'file', label: 'File it', text: 'Staff decides: usually "resolved" with no change. Roll a d6; on 6 it\'s actually fixed. Either way, the officer named in it rolls +1 blue against you next month.',
+      { id: 'file', label: 'File it', text: 'Staff decides: usually "resolved" with no change. Roll a d6; on 6 it\'s actually fixed. Either way, staff remember who files: +1 blue die on every roll next month.',
         check: { target: 6, pass: { boxes: 1, blueNext: 1, flag: 'grievance', log: 'It is actually fixed.' }, fail: { blueNext: 1, flag: 'grievance', log: 'It is resolved. Nothing changes.' } } },
       { id: 'tear', label: 'Tear it up', text: 'Nothing happens.', effect: {} }
     ] }),
